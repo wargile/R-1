@@ -10,11 +10,14 @@
 # categories (like fashion, electronics, etc.). The products for the training and testing sets are selected randomly.
 
 # TIPS:
+# https://www.kaggle.com/c/otto-group-product-classification-challenge/scripts
+# https://www.kaggle.com/users/993/ben-hamner/otto-group-product-classification-challenge/t-sne-visualization
 # https://kaggle2.blob.core.windows.net/forum-message-attachments/66759/2166/benchmark.py?sv=2012-02-12&se=2015-03-20T17%3A58%3A28Z&sr=b&sp=r&sig=vOVQmc1iyLTnQepV7DbKqe%2BXUMvken2Df5xWjTRnk8Y%3D
 # https://github.com/ottogroup/kaggle/blob/master/benchmark.py
 # https://gist.github.com/doobwa/3cefcc92891c4f1571f8
 # http://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/12882/guess-this-is-really-the-time-to-try-out-neural-nets
-
+# http://www.r-bloggers.com/comparing-tree-based-classification-methods-via-the-kaggle-otto-competition/
+  
 # TODO:
 # "Cluster similar products": Can kmeans or other cluster techniques be used? Tree?
 # Transform counts to TF-IDF features. How to do in R? Not needed?
@@ -40,7 +43,10 @@ library(kernlab)
 library(e1071)
 library(foreach)
 library(doParallel)
-
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(caret)
 
 set.seed(16071962)
 
@@ -272,6 +278,26 @@ axis(side=1, at=seq(0, max.tree - start.tree, 5) + 1, labels=seq(start.tree, max
 lines(result, col="steelblue3")
 abline(v=best.trees, col="red")
 print(Sys.time() - strt)
+
+# ---------------------------------------------------------------------------------------------------------------------------
+
+# Try a tree with rpart:
+
+numFolds <- trainControl(method="cv", number=10)
+cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
+train(as.factor(target) ~ ., data=train.subset, method="rpart", trControl=numFolds, tuneGrid=cpGrid) # Get cp param at end
+cp.value <- 0.01
+fit <- rpart(as.factor(target) ~ ., data=train.subset, cp=cp.value, minbucket=15) # TODO: Try various minbucket!
+summary(fit)
+prp(fit, cex=.7, col="blue")
+pred <- predict(fit, validation.subset, type="class")
+barplot(table(pred))
+result <- table(validation.subset$target, pred)
+result
+accuracy <- sum(diag(result)) / sum(result)
+accuracy
+my.title <- paste0("Confusion Matrix (accuracy = ", round(accuracy, 2), ")")
+ConfusionMatrix(data=result, labels=paste0("Class", 1:9), title=my.title)
 
 # ---------------------------------------------------------------------------------------------------------------------------
 

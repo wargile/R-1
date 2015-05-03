@@ -999,7 +999,7 @@ KaggleSubmission <- function(submissionData, submissionFolder, submissionType, c
 }
 
 # Create nice confusion matrix
-ConfusionMatrix <- function(data, labels, xlab=NA, ylab=NA, title="Confusion Matrix") {
+ConfusionMatrix <- function(data, labels=NA, xlab=NA, ylab=NA, title="Confusion Matrix") {
   z <- matrix(data, ncol=length(labels), byrow=F, dimnames=list(labels, labels))
   confusion <- as.data.frame(t(as.table(z)))
   
@@ -1619,4 +1619,22 @@ CalibrateRF <- function(data, r=.94) {
   })
   #rownames(result) <- NULL
   return (t(result))
+}
+
+PlotROC <- function(y, pred, title="ROCR plot") {
+  # Show ROCR colorized plot
+  library(ROCR)
+  par(mar=c(3,3,2,2))
+  predROCR = prediction(pred, y)
+  perfROCR = performance(predROCR, "tpr", "fpr")
+  plot(perfROCR, colorize=TRUE, main=title, lwd=3)
+  lines(c(0,1),c(0,1), col="gray", lty=2)
+  # TODO: Add text
+  # http://www.r-bloggers.com/a-small-introduction-to-the-rocr-package/
+  # NOTE: At a cutoff of 0.6-0.8, we predict a good TP rate, while at the same time having a low FP rate.
+  par(mar=c(3,3,2,1))
+  # Compute and return AUC
+  return (performance(predROCR, "auc")@y.values)
+  #sn <- slotNames(predROCR)
+  #sapply(sn, function(x) length(slot(predROCR, x)))
 }

@@ -2,6 +2,7 @@
 # ----------------------------------
 # Create your own R packages: https://github.com/jtleek/rpackages
 
+# https://github.com/qinwf/awesome-R
 # http://fr.slideshare.net/DataRobot/final-10-r-xc-36610234
 # http://a-little-book-of-r-for-time-series.readthedocs.org/en/latest/
 # http://minimaxir.com/2015/02/ggplot-tutorial/
@@ -144,13 +145,22 @@ GraphEuroStatUnemploymentRate <- function(annotate=F) {
   head(my.data.melted)
   #levels(my.data.melted$quarter) <- quarter.abb ## Abbreviate x labels if necessary (and if possible. e.g. month names)
   
+  mf_labeller <- function(var, value){
+    value <- as.character(value)
+    if (var=="Sex") { 
+      value[value=="F"] <- "Females"
+      value[value=="M"] <- "Males"
+    }
+    return(value)
+  }
+  
   lp <- ggplot(data=my.data.melted, aes(substr(variable, 5, 9), value, group=Country, colour=Country)) +
     geom_line(size=.8) + geom_point(size=3, shape=15) +
     ggtitle("EuroStat unemployment rate 2005-2014, by sex") +
     ylab("Unemployment rate") + xlab("Year") +
     theme_bw() +
     theme(axis.text.x=element_text(angle=0, hjust=1)) +
-    facet_grid(Sex ~ .)
+    facet_grid(Sex ~ ., labeller=mf_labeller)
   
   if (annotate) {
     lp <- lp + geom_text(label=my.data.melted$Country, size=4, se=TRUE, hjust=-0.1, colour="black", stat="identity")

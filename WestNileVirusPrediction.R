@@ -69,9 +69,12 @@ table(sampleSubmission$WnvPresent) # Not present at all!
 # https://www.kaggle.com/users/103872/gayatri-mahesh/predict-west-nile-virus/starter-logistic-regression-in-r
 
 train$Month <- as.factor(substr(train$Date, 6,7))
+test$Month <- as.factor(substr(test$Date, 6,7))
+test$Species[test$Species == "UNSPECIFIED CULEX"] <- "CULEX ERRATICUS"
 table(train$Month)
 levels(train$Month)
 train$Species <- as.factor(train$Species)
+test$Species <- factor(test$Species, levels=levels(train$Species))
 table(train$Species)
 levels(train$Species)
 train$WnvPresent <- as.factor(make.names(train$WnvPresent))
@@ -80,20 +83,48 @@ result <- CreateTrainAndValidationSets(train)
 train.subset <- result[[1]]
 validation.subset <- result[[2]]
 
-f <- formula(WnvPresent ~ Month + Species + Block)
-f <- formula(WnvPresent ~ Month + Species + Latitude + Longitude + Block)
-fitCv <- train(f, data=train.subset, method="glmnet",
-             trControl=trainControl(method='cv', number=5, classProbs=T,
-                                      summaryFunction=twoClassSummary),
-             tuneGrid=expand.grid(alpha=0.001, lambda=seq(0.001,0.01,0.001)),
-             metric='ROC')
+f <- formula(as.factor(WnvPresent) ~ Month + Species + Latitude + Longitude + Block)
+fitCv <- randomForest(f, data=train.subset)
 fitCv
 pred <- predict(fitCv, validation.subset, type="prob")
 max(pred[,2])
 min(pred[,2])
 plot(sort(pred[,2]), col="blue")
 table(validation.subset$WnvPresent, pred[,2] > 0.5)
+table(pred[,2] > 0.5)
 table(validation.subset$WnvPresent)
+# Plot ROC curve and get AUC
+PlotROC(validation.subset$WnvPresent, pred[,2])
+
+f <- formula(WnvPresent ~ Month + Species + Latitude + Longitude + Block)
+fitCv <- glm(f, data=train.subset, family=binomial(link="logit"))
+fitCv
+pred <- predict(fitCv, validation.subset, type="response")
+max(pred)
+min(pred)
+plot(sort(pred), col="blue")
+table(validation.subset$WnvPresent, pred > 0.5)
+table(validation.subset$WnvPresent)
+# Plot ROC curve and get AUC
+PlotROC(validation.subset$WnvPresent, pred)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+f <- formula(as.factor(WnvPresent) ~ Month + Species + Latitude + Longitude + Block)
+fitCv <- randomForest(f, data=train)
+fitCv
+pred <- predict(fitCv, test, type="response")
+max(pred)
+min(pred)
+plot(sort(pred), col="blue")
+
+f <- formula(WnvPresent ~ Month + Species + Latitude + Longitude + Block)
+fitCv <- glm(f, data=train, family=binomial(link="logit"))
+fitCv
+pred <- predict(fitCv, test, type="response")
+max(pred)
+min(pred)
+plot(sort(pred), col="blue")
 
 # ----------------------------------------------------------------------------------------------------------------------
 colnames(submission) <- c("Id","WnvPresent")

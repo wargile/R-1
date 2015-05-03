@@ -15,6 +15,7 @@ library(e1071)
 SetStandardOptions()
 # Set locale to US, to ensure that there aren't formatting issues in assigmnents/inputs:
 Sys.setlocale("LC_ALL", "C")
+options(digits=7)
 
 folder <- "C:/coding/R/Coursera/edX_TheAnalyticsEdge/Week 4/Assignment/"
 
@@ -743,3 +744,130 @@ summary(census.cv)
 prp(census.cv, cex=.7, col="blue")
 summary(census.cv)
 
+
+# 4) STATE DATA REVISITED (OPTIONAL)
+# ----------------------------------
+data(state)
+statedata <- data.frame(state.x77) # NOTE: Same as stateDataSimple.csv in week 4 folder
+
+# This dataset has 50 observations (one for each US state) and the following 8 variables:
+# Population - the population estimate of the state in 1975
+# Income - per capita income in 1974
+# Illiteracy - illiteracy rates in 1970, as a percent of the population
+# Life.Exp - the life expectancy in years of residents of the state in 1970
+# Murder - the murder and non-negligent manslaughter rate per 100,000 population in 1976 
+# HS.Grad - percent of high-school graduates in 1970
+# Frost - the mean number of days with minimum temperature below freezing from 1931-1960 in the capital or a large city of the state
+# Area - the land area (in square miles) of the state
+str(statedata)
+pairs(statedata, col="blue", main="statedata")
+# We will try to build a model for life expectancy using regression trees,
+# and employ cross-validation to improve our tree's performance.
+CorrelationPlot(statedata)
+
+# PROBLEM 1.1 - LINEAR REGRESSION MODELS. Answer: adjR2 = 0.692
+fit <- lm(Life.Exp ~ ., data=statedata)
+summary(fit)
+
+# PROBLEM 1.2 - LINEAR REGRESSION MODELS. Answer: SSE = 23.2971
+pred <- predict(fit)
+SSE <- sum((pred - statedata$Life.Exp)^2) 
+SSE # 23.2971
+# or use:
+sum(fit$residuals^2)
+
+# PROBLEM 1.3 - LINEAR REGRESSION MODELS. Answer: AdjR2 = 0.7126
+fit2 <- lm(Life.Exp ~ Population+Murder+Frost+HS.Grad, data=statedata)
+summary(fit2)
+
+# PROBLEM 1.4 - LINEAR REGRESSION MODELS. Answer: SSE = 23.30804
+pred2 <- predict(fit2)
+SSE2 <- sum((pred2 - statedata$Life.Exp)^2) 
+SSE2 # 23.30804
+
+# PROBLEM 1.5 - LINEAR REGRESSION MODELS. Answer: See below.
+# Answer: Trying different combinations of variables in linear regression is like trying different numbers of
+# splits in a tree - this controls the complexity of the model.
+
+# PROBLEM 2.1 - CART MODELS Answer: Only variable in tree is "Murder"
+fit3 <- rpart(Life.Exp ~ ., data=statedata)
+summary(fit3)
+prp(fit3, cex=.7, col="blue")
+
+# PROBLEM 2.2 - CART MODELS Answer: SSE = 28.99848
+pred3 <- predict(fit3)
+SSE3 <- sum((pred3 - statedata$Life.Exp)^2) 
+SSE3 # 28.99848
+
+# PROBLEM 2.3 - CART MODELS Answer: Murder, HS.Grad and Area are shown in the CART tree
+fit4 <- rpart(Life.Exp ~ ., data=statedata, minbucket=5)
+summary(fit4)
+prp(fit4, cex=.7, col="blue")
+
+# PROBLEM 2.4 - CART MODELS Answer: The default minbucket size must be larger, since 5 is limiting the number of trees
+# being built. A larger minbucket split into more trees. See rpart.control (minsplit = 20, minbucket = round(minsplit/3))
+# Do you think the default minbucket parameter is smaller or larger than 5 based on the tree that was built?
+
+# PROBLEM 2.5 - CART MODELS Answer: SSE = 23.64283
+pred4 <- predict(fit4)
+SSE4 <- sum((pred4 - statedata$Life.Exp)^2) 
+SSE4 # 23.64283
+
+# PROBLEM 2.6 - CART MODELS Answer: SSE = 9.312442
+fit5 <- rpart(Life.Exp ~ Area, data=statedata, minbucket=1) # NOTE: One observation in each bucket? No, see note below.
+summary(fit5)
+prp(fit5, cex=.7, col="blue")
+pred5 <- predict(fit5)
+SSE5 <- sum((pred5 - statedata$Life.Exp)^2) 
+SSE5 # 9.312442
+# Note that the SSE is not zero here - we still make some mistakes. This is because there are other parameters
+# in rpart that are also trying to prevent the tree from overfitting by setting default values. So our tree
+# doesn't necessarily have one observation in each bucket - by setting minbucket=1 we are just ALLOWING the tree
+# to have one observation in each bucket.
+
+# PROBLEM 2.7 - CART MODELS Answer: See below.
+# This is the lowest error we have seen so far. What would be the best interpretation of this result?
+# Answer: We can build almost perfect models given the right parameters, even if they violate our intuition of
+# what a good model should be.
+
+# PROBLEM 3.1 - CROSS-VALIDATION. Answer: cp = 0.12
+# Use caret to get optimal cp value:
+set.seed(111)
+numFolds <- trainControl(method="cv", number=10)
+cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
+train(Life.Exp ~ ., data=statedata,
+      method="rpart", trControl=numFolds, tuneGrid=cpGrid) # Get cp param at end
+# Remember that the train function tells you to pick the largest value of cp with the lowest error
+# when there are ties, and explains this at the bottom of the output.
+
+# PROBLEM 3.2 - CROSS-VALIDATION. Answer: See below.
+# Answer: Qe predict the life expectancy to be 70 if the murder rate is greater than or equal to 6.6 and is less than 11.
+fit6 <- rpart(Life.Exp ~ ., data=statedata, cp=0.12) # NOTE: One observation in each bucket? No, see note below.
+summary(fit6)
+prp(fit6, cex=.7, col="blue")
+pred6 <- predict(fit6)
+
+# PROBLEM 3.3 - CROSS-VALIDATION. Answer: SSE = 32.86549
+SSE6 <- sum((pred6 - statedata$Life.Exp)^2) 
+SSE6 # 32.86549
+
+# PROBLEM 3.4 - CROSS-VALIDATION. Answer: The model we just made with the "best" cp
+# Given what you have learned about cross-validation, which of the three models would you expect to be better if we did
+# use it for prediction on a test set?
+
+# PROBLEM 3.5 - CROSS-VALIDATION. Answer: Tree has 4 splits.
+set.seed(111)
+numFolds <- trainControl(method="cv", number=10)
+cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
+train(Life.Exp ~ Area, data=statedata,
+      method="rpart", trControl=numFolds, tuneGrid=cpGrid) # Get cp param at end
+fit7 <- rpart(Life.Exp ~ Area, data=statedata, cp=0.02) # NOTE: One observation in each bucket? No, see note below.
+prp(fit7, cex=.7, col="blue")
+
+# PROBLEM 3.6 - CROSS-VALIDATION. Answer: Observations in this leaf correspond to states with area greater than
+# or equal to 9579 and area less than 51000 (51e+3)
+
+# PROBLEM 3.7 - CROSS-VALIDATION. Answer: The Area variable is not as predictive as Murder rate.
+pred7 <- predict(fit7)
+SSE7 <- sum((pred7 - statedata$Life.Exp)^2) 
+SSE7 # 44.26817

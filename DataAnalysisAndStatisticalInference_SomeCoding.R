@@ -552,5 +552,17 @@ df <- data.frame(x=1:n, y=college.student.sample)
 fit <- lm(y ~ x, data=df)
 confint(fit)
 
-# p-value:
-# --------
+# Unit 7: R-squared, adjR2, etc.
+# ------------------------------
+library(DAAG)
+data(allbacks)
+book_mlr <- lm(weight ~ volume + cover, data=allbacks)
+plot(weight ~ volume, data=allbacks, col=as.integer(cover)+1, pch=as.integer(cover)+6, main="allbacks")
+abline(book_mlr)
+result <- anova(book_mlr)
+result
+names(result)
+result$"Sum Sq"
+# To get R2, do: (Sum of predictors Sum Sq) / (Total Sum Sq)
+# R2 is the fraction of the explained variance in the models (total variance minus residuals)
+

@@ -57,6 +57,15 @@ pairs(train[,1:26], col="blue")
 pairs(train[26:53], col="blue")
 CorrelationPlot(train)
 CorrelationPlot(train[,1:14])
+cor(train$Slope, train$Hillshade_9am)
+cor(train$Slope, train$Hillshade_3pm)
+cor(train$Slope, train$Hillshade_Noon)
+
+# Add a predictor (factor) for whether Vertical_Distance_To_Hydrology < 0 or not
+train$IsBelowSeaLevel <- as.factor(ifelse(train$Vertical_Distance_To_Hydrology <= 0, 1, 0))
+test$IsBelowSeaLevel <- as.factor(ifelse(test$Vertical_Distance_To_Hydrology <= 0, 1, 0))
+table(train$IsBelowSeaLevel)
+table(test$IsBelowSeaLevel)
 
 # Look at missing values:
 package.install("Amelia")
@@ -85,6 +94,7 @@ sort(variance.train, decreasing=T)[1:10]
 # Compare to:
 influence[1:10]
 
+par(mfrow=c(1,1))
 par(mar=c(10,3,2,1))
 plot(sort(variance.train, decreasing=T), pch=16, col="blue", main="Variance in training set", xaxt="n",
      xlab="", ylab="Variance")
@@ -212,8 +222,15 @@ barplot(with(CoverType4_5, tapply(Hillshade_Noon, Cover_Type, mean)))
 result <- CreateTrainAndValidationSets(train)
 train.subset <- result$train
 verification.subset <- result$validation
+
+library(caTools)
+set.seed(1000)
+split <- sample.split(train$Cover_Type, SplitRatio=0.7)
+train.subset <- subset(train, split==TRUE)
+validation.subset <- subset(train, split==FALSE)
 dim(train.subset)
-dim(verification.subset)
+dim(validation.subset)
+
 
 oldmar <- par()$mar
 par(mar=c(5,4.5,3,1))
@@ -510,21 +527,20 @@ dat_h2o <- as.h2o(localH2O, train.subset[, cols], key='train')
 dat_h2o.test <- as.h2o(localH2O, validation.subset[, cols], key='test')
 
 dat_h2o <- as.h2o(localH2O, train.subset, key='train')
-dat_h2o.test <- as.h2o(localH2O, verification.subset, key='test')
+dat_h2o.test <- as.h2o(localH2O, validation.subset, key='test')
 
 # train/test:
-y.col <- 45
-x.cols <- 1:44
-# train.subset/validation.subset:
 y.col <- 53
-x.cols <- 1:52
+x.cols <- c(1:52,54) # Added IsBelowSeaLevel
 # train.subset/validation.subset with more cols:
 y.col <- 53
-x.cols <- 1:52
+x.cols <- c(1:52,54) # Added IsBelowSeaLevel
+y.col <- 53
+x.cols <- c(1:6,10:52) # TEST: Skip hillshade predictors
 
-model <- 
-  h2o.deeplearning(x=x.cols, # 1:52,  # column numbers for predictors
-                   y=y.cols, # 53,   # column number for outcome variable
+model.dl <- 
+  h2o.deeplearning(x=x.cols, # column numbers for predictors
+                   y=y.cols, # column number for outcome variable
                    data=dat_h2o, # data in H2O format
                    activation="Tanh", # or 'TanhWithDrouput'
                    #input_dropout_ratio=0.2, # % of inputs dropout
@@ -533,39 +549,54 @@ model <-
                    # l2, # TODO: How to set L1 or L2 regularization?
                    hidden=c(50, 50, 50), # three layers of 50 nodes
                    epochs=100) # max. no. of epochs
+model.dl
 
-model <-
+model.gbm <-
   h2o.gbm(x=x.cols, y=y.col, distribution = "multinomial", data=dat_h2o, key = "gbm", n.trees = 250, 
         interaction.depth = 5, n.minobsinnode = 10, shrinkage = 0.1, n.bins = 20,
         group_split = TRUE, importance = FALSE, nfolds = 0, holdout.fraction = 0,
         balance.classes = FALSE, max.after.balance.size = 5, class.sampling.factors = NULL,
         grid.parallelism = 1)
+model.gbm
 
-model <-
-  h2o.randomForest(x=x.cols, y=y.col, data=dat_h2o, key = "rf", classification = TRUE, ntree = 250, 
+model.rf <-
+  h2o.randomForest(x=x.cols, y=y.col, data=dat_h2o, key = "rf", classification = TRUE, ntree = 500, # Was: 250 
     depth = 20, mtries = -1, sample.rate = 2/3, nbins = 20, seed = -1, 
     importance = FALSE, score.each.iteration = FALSE, nfolds = 0, 
     holdout.fraction = 0, nodesize = 1, balance.classes = FALSE, 
     max.after.balance.size = 5, class.sampling.factors = NULL, 
     doGrpSplit = TRUE, verbose = FALSE, oobee = TRUE, stat.type = "ENTROPY", 
     type = "fast")
+model.rf
 
-model
-h2o_yhat_test <- h2o.predict(model, dat_h2o.test)
-df_yhat_test <- as.data.frame(h2o_yhat_test)
-table(df_yhat_test$predict)
+h2o_yhat_test.dl <- h2o.predict(model.dl, dat_h2o.test)
+df_yhat_test.dl <- as.data.frame(h2o_yhat_test.dl)
+table(df_yhat_test.dl$predict)
+h2o_yhat_test.gbm <- h2o.predict(model.gbm, dat_h2o.test)
+df_yhat_test.gbm <- as.data.frame(h2o_yhat_test.gbm)
+table(df_yhat_test.gbm$predict)
+h2o_yhat_test.rf <- h2o.predict(model.rf, dat_h2o.test)
+df_yhat_test.rf <- as.data.frame(h2o_yhat_test.rf)
+table(df_yhat_test.rf$predict)
 
 # CV score on validation subset:
-table(verification.subset$Cover_Type) # The ground truth
-result <- table(verification.subset$Cover_Type, df_yhat_test$predict)
-result
-ConfusionMatrix(result, sort(unique(verification.subset$Cover_Type)))
-correct.preds <- diag(result)
-score <- 1 - (correct.preds / sum(result))
-score <- correct.preds / rowSums(result)
-score <- sum(diag(result)) / sum(result)
-score
-overall.score <- sum(score) / length(score)
+table(validation.subset$Cover_Type) # The ground truth
+result.dl <- table(validation.subset$Cover_Type, df_yhat_test.dl$predict)
+result.dl
+result.gbm <- table(validation.subset$Cover_Type, df_yhat_test.gbm$predict)
+result.gbm
+result.rf <- table(validation.subset$Cover_Type, df_yhat_test.rf$predict)
+result.rf
+table(df_yhat_test.rf$predict, df_yhat_test.gbm$predict)
+ConfusionMatrix(result.dl, sort(unique(validation.subset$Cover_Type)))
+ConfusionMatrix(result.gbm, sort(unique(validation.subset$Cover_Type)))
+ConfusionMatrix(result.rf, sort(unique(validation.subset$Cover_Type)))
+score.dl <- sum(diag(result.dl)) / sum(result.dl)
+score.dl
+score.gbm <- sum(diag(result.gbm)) / sum(result.gbm)
+score.gbm
+score.rf <- sum(diag(result.rf)) / sum(result.rf)
+score.rf
 
 submission <- data.frame(ID=test.id, Cover_Type=df_yhat_test$predict)
 head(submission)
@@ -580,21 +611,21 @@ write.csv(submission, file=paste0(submissionsFolder, "h2o_rf_benchmark_",
 library(rpart)
 library(rpart.plot)
 
+fol <- formula(Cover_Type ~ Elevation + Vertical_Distance_To_Hydrology + Aspect + IsBelowSeaLevel)
 fol <- formula(Cover_Type ~ .)
-#fol <- formula(Cover_Type ~ Elevation + Soil_Type10 + Soil_Type2 + Horizontal_Distance_To_Fire_Points)
 #model <- rpart(fol, method="class", data=train.subset, cp=0.01)
-model <- rpart(fol, method="class", data=train.subset, cp=0.0002)
-model <- rpart(fol, method="class", data=train, cp=0.0002)
+model <- rpart(fol, method="class", data=train.subset, cp=0.01, minbucket=50)
+model <- rpart(fol, method="class", data=train, cp=0.01)
 print(model)
 summary(model)
 prp(model, cex=.7, col="blue")
 
-pred.rpart <- predict(model, newdata=verification.subset, type="class")
+pred.rpart <- predict(model, newdata=validation.subset, type="class")
 pred.rpart <- predict(model, newdata=test, type="class")
 plot(sort(pred.rpart), type="l", col="blue", main="pred.rpart")
 barplot(table(train$Cover_Type), col="powderblue", main="train$Cover_Type") # NOTE: Equal frequency!
 barplot(table(pred.rpart), col="powderblue", main="pred.rpart")
-accuracy <- table(verification.subset$Cover_Type, pred.rpart)
+accuracy <- table(validation.subset$Cover_Type, pred.rpart)
 accuracy
 ConfusionMatrix(accuracy, labels=c(1:7))
 score <- sum(diag(accuracy)) / sum(accuracy)

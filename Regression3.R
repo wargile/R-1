@@ -63,10 +63,32 @@ theta <- predict(fit, newdata=new.data)
 theta <- theta / 100 # Avoid Inf problem with exp()
 pred.result <- ifelse(exp(theta) / (1 + exp(theta)) < 0.5, 0, 1)
 my.rmse <- MyRMSE(new.y, pred.result)
-# sqrt(n.misclass / n) gives same result
-# n.misclass <- length(which(pred.result != new.y))
+my.rmse
+n.misclass <- length(which(pred.result != new.y))
+sqrt(n.misclass / n) # gives same result as my.rmse
 plot(pred.result, type="p", col="red", ylim=c(-0.5, 1.5), cex.main=1, cex.lab=.8,
      pch=19, cex.axis=.8, main=paste0("GLM, RMSE=", round(my.rmse, 4)), lwd=size) # Plot prediction
 points(new.y, col="gray", pch=19, lwd=size) # Plot holdout y
 table(new.y, pred.result)
 ConfusionMatrix(table(new.y, pred.result), c("0","1"))
+
+# Simple example of linear regression:
+# ------------------------------------
+x1 <- rnorm(100)
+x2 <- rnorm(10) * x1
+y <- x1 + x2 * rnorm(100)
+fit <- lm(y ~ x1+x2)
+summary(fit)
+plot(x1, pch=19)
+points(x2, pch=16, col="red")
+fit$fitted
+df <- data.frame(x0=rep(1, 100), x1=x1, x2=x2)
+df
+plot(colSums(t(as.matrix(df)) * fit$coeff), pch=19, col="gray")
+# Same as:
+points(fit$fitted, col="red")
+
+# Residuals:
+y - fit$fitted
+# Same as:
+fit$residuals

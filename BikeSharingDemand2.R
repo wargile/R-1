@@ -22,8 +22,10 @@
 # Year is important as predictor!
 # ------------------------------------------------------------------------------------------------------------
 
-set.seed(16071962)
+set.seed(1000)
 source("tools.R")
+
+SetStandardOptions()
 
 dataFolder <- "C:/coding/Kaggle/BikeSharingDemand/data/"
 codeFolder <- "C:/coding/Kaggle/BikeSharingDemand/code/"
@@ -140,16 +142,24 @@ plot(train$registered ~ train$month, col="orange", main="Count by month", cex.ma
 op <- par()
 par(mar=c(5,4.5,2,.8))
 result <- aggregate(train$count, by=list(train$year), mean)
+# or use:
+result <- tapply(train$count, train$year, mean)
 barplot(result$x, col=c("wheat","cornflowerblue"), main="Train: Mean of count", names.arg=unique(train$year),
         cex.axis=.8, cex.lab=.8, cex.main=1, cex.names=.8)
 plot(count ~ as.factor(atemp), data=train, col="orange",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by average temp")
+plot(casual ~ as.factor(atemp), data=train, col="orange",
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (casual) by average temp")
+plot(registered ~ as.factor(atemp), data=train, col="orange",
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (registered) by average temp")
 cor(train$count, train$atemp)
 plot(count ~ as.factor(temp), data=train, col="orange",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by temp")
 cor(train$count, train$temp)
 plot(count ~ as.factor(humidity), data=train, col="orange",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by humidity")
+plot(casual ~ as.factor(humidity), data=train, col="orange",
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (casual) by humidity")
 cor(train$count, train$humidity)
 plot(count ~ as.factor(weather), data=train, col="orange",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by weather")
@@ -166,18 +176,22 @@ plot(registered ~ as.factor(hour), data=train, col="powderblue",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (registered) by hour")
 cor(train$count, as.integer(train$hour))
 plot(count ~ month, data=train, col="cornflowerblue",
-     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by month")
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand by month")
+plot(casual ~ month, data=train, col="cornflowerblue",
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand (casual) by month")
 cor(train$count, as.integer(train$month))
 plot(count ~ as.factor(season), data=train, col="wheat",
-     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by season")
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand by season")
 plot(count ~ as.factor(weekday), data=train, col="orangered",
-     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by weekday")
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand by weekday")
 plot(casual ~ as.factor(weekday), data=train, col="wheat",
-     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (casual) by weekday")
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand (casual) by weekday")
 plot(registered ~ as.factor(weekday), data=train, col="powderblue",
-     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (registered) by weekday")
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=1, main="Bike demand (registered) by weekday")
 plot(count ~ as.factor(windspeed), data=train, col="orangered",
      cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand by windspeed")
+plot(casual ~ as.factor(windspeed), data=train, col="orangered",
+     cex.axis=.7, cex.lab=.7, cex.main=1, cex.names=.7, las=2, main="Bike demand (casual) by windspeed")
 
 boxplot(train$humidity, test$humidity, col=c("red", "green"), main="Train/test humidity")
 boxplot(train$atemp, test$atemp, col=c("red", "green"), main="Train/test atemp")
@@ -202,7 +216,7 @@ cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 WeekHour=aggregate(count ~ hour + weekday, data=train, FUN=mean)
 ggplot(data=WeekHour, aes(x=hour, y=count)) +
   geom_line(aes(group=weekday, color=weekday), size=1.5, alpha=.8)
-  #scale_fill_manual(values=as.factor(weekday))
+#scale_fill_manual(values=as.factor(weekday))
 
 # -------------------------------------------------------------------------------------------------------
 # Split train in train and validation sets
@@ -216,20 +230,82 @@ validation.subset <- result$validation
 dim(train.subset)
 dim(validation.subset)
 
+library(caTools)
+set.seed(1000)
+split <- sample.split(train$count, SplitRatio=0.75)
+train.subset <- subset(train, split==TRUE)
+validation.subset <- subset(train, split==FALSE)
+dim(train.subset)
+dim(validation.subset)
+
 # TODO: Scale scalars
 # Include year??
+
+# Experiment with lm, and check adjR2 (R squared)
+fit <- lm(log(count + 1) ~ hour, data=train.subset) # R2: 0.71
+summary(fit)
+fit <- lm(log(count + 1) ~ hour + atemp, data=train.subset) # R2: 0.768
+summary(fit)
+fit <- lm(log(count + 1) ~ hour + atemp + month, data=train.subset) # R2: 0.785
+summary(fit)
+fit <- lm(log(count + 1) ~ hour + atemp + month + year, data=train.subset) # R2: 0.816
+summary(fit)
+fit <- lm(log(count + 1) ~ hour + atemp + month + year + weather, data=train.subset) # R2: 0.831
+summary(fit)
+fit <- lm(log(count + 1) ~ hour + atemp + month + year + weather + weekday, data=train.subset) # R2: 0.833, small change
+summary(fit)
+pred <- exp(predict(fit, validation.subset))
+MyRMSLE(validation.subset$count, pred)
+
+fit1 <- lm(log(registered + 1) ~ hour, data=train.subset) # R2: 0.713
+summary(fit1)
+fit1 <- lm(log(registered + 1) ~ hour + atemp, data=train.subset) # R2: 0.753
+summary(fit1)
+fit1 <- lm(log(registered + 1) ~ hour + atemp + month, data=train.subset) # R2: 0.771
+summary(fit1)
+fit1 <- lm(log(registered + 1) ~ hour + atemp + month + year, data=train.subset) # R2: 0.808
+summary(fit1)
+fit1 <- lm(log(registered + 1) ~ hour + atemp + month + year + weather, data=train.subset) # R2: 0.82
+summary(fit1)
+fit1 <- lm(log(registered + 1) ~ hour + atemp + month + year + weather + weekday, data=train.subset) # R2: 0.823
+summary(fit1)
+#fit1 <- lm(log(registered + 1) ~ hour + atemp + month + year + weather + weekday + humidity, data=train.subset) # R2: 0.823
+#summary(fit1)
+pred1 <- exp(predict(fit1, validation.subset))
+
+fit2 <- lm(log(casual + 1) ~ hour, data=train.subset) # R2: 0.551
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp, data=train.subset) # R2: 0.726
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp + month, data=train.subset) # R2: 0.746
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp + month + year, data=train.subset) # R2: 0.757
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp + month + year + weather, data=train.subset) # R2: 0.779
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp + month + year + weather + weekday, data=train.subset) # R2: 0.828
+summary(fit2)
+fit2 <- lm(log(casual + 1) ~ hour + atemp + month + year + weather + weekday + humidity, data=train.subset) # R2: 0.831
+summary(fit2)
+#fit2 <- lm(log(casual + 1) ~ hour + atemp + month + year + weather + weekday + humidity + windspeed, data=train.subset) # R2: 0.831
+#summary(fit2)
+pred2 <- exp(predict(fit2, validation.subset))
+pred <- pred1 + pred2
+plot(sort(pred))
+MyRMSLE(validation.subset$count, pred)
+
 
 # Try poisson regression
 # http://www.ats.ucla.edu/stat/r/dae/poissonreg.htm
 fit <- glm(count ~ hour + year + atemp + month + weather + humidity + windspeed + weekday,
            data=train.subset, na.action=na.exclude, family=quasipoisson())
 fit.casual <- glm(casual ~ hour + year + atemp + month + weather + humidity + windspeed + weekday,
-           data=train.subset, na.action=na.exclude, family=quasipoisson())
+                  data=train.subset, na.action=na.exclude, family=quasipoisson())
 fit.registered <- glm(registered ~ hour + year + atemp + month + weather + humidity + windspeed + weekday,
-           data=train.subset, na.action=na.exclude, family=quasipoisson())
+                      data=train.subset, na.action=na.exclude, family=quasipoisson())
 # Testing log transform on outcome variable
 fit.log <- glm(as.integer(log(count)) ~ as.factor(hour) + as.factor(year) + atemp + month + weather + humidity + windspeed + weekday,
-           data=train.subset, na.action=na.exclude, family=poisson())
+               data=train.subset, na.action=na.exclude, family=poisson())
 
 summary(fit)
 summary(fit.casual)
@@ -251,37 +327,45 @@ rmsle.log <- MyRMSLE(validation.subset$count, pred.log)
 
 # TODO: Put this section in tools.R?
 # Compare normal and log curves for count. Log more evenly cyclic:
-op <- par()
-par(mfrow=c(2,1))
 par(mar=c(2.5,4,2,1))
 n <- 50
-plot(validation.subset$count[1:n], type="o", col="blue", xlab="", ylab="Count", cex.lab=.8, cex.axis=.8, cex.main=.8,
+plot(validation.subset$count[1:n], type="o", col="blue", xlab="", ylab="Count",
      main=paste0("y/pred (RMSLE: ", round(rmsle, 3), ")"))
 points(pred[1:n], col="red", type="o")
 legend("topright", legend=c("y","pred"), col=c("blue","red"), lwd=2, cex=.7)
-plot(validation.subset$count[1:n], type="o", col="blue", xlab="", ylab="Count", cex.lab=.8, cex.axis=.8, cex.main=.8,
-     main=paste0("y/pred r+c (RMSLE: ", round(rmsle.registered.casual, 3), ")"))
-points(pred.registered[1:n] + pred.casual[1:n], col="red", type="o")
-legend("topright", legend=c("y","pred r+c"), col=c("blue","red"), lwd=2, cex=.7)
 par <- op
 
-# Trying RF for comparison:
-cols.to.include <- c(13, 7, 15, 5, 8, 9, 14, 16) # NOTE: Year included now
-fit.rf <- randomForest(as.integer(train.subset$count) ~ .,
-                       train.subset[, cols.to.include], proximity=F, keep.forest=T, ntree=100, nodesize=50) # ntree=150, 80
-pred.rf <- predict(fit.rf, validation.subset[, cols.to.include], type="response")
-rmsle.rf <- MyRMSLE(validation.subset$count, pred.rf)
+# NEW TEST START with caTools split:
+# TODO: Round count first if not done?
+fit1 <- randomForest(log(casual + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                       windspeed+hour+weekday+month+year,
+                     data=train.subset, ntree=80, mtry=4, nodesize=2)
+fit2 <- randomForest(log(registered + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                       windspeed+hour+weekday+month+year,
+                     data=train.subset, ntree=80, mtry=4, nodesize=2)
+varImpPlot(fit1, col="blue", pch=16, cex=.7)
+varImpPlot(fit2, col="blue", pch=16, cex=.7)
 
-op <- par()
-par(mar=c(5,4,2,.8))
-par(mfrow=c(2,2))
-plot(pred.casual + pred.registered, col="blue", ylab="Count", main="Casual+registered")
-grid()
-plot(pred, col="orangered", ylab="Count", main="Count")
-grid()
-plot(validation.subset$count, col="green4", ylab="Count", main="Validation: Count")
-grid()
-par <- op
+#cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
+pred1 <- exp(predict(fit1, validation.subset, type="response"))
+pred2 <- exp(predict(fit2, validation.subset, type="response"))
+pred <- (pred1 + pred2)
+plot(validation.subset$count[1:100], type="l", col="blue")
+lines(pred[1:100], col="red")
+rmsle1 <- MyRMSLE(validation.subset$count, pred)
+rmsle1
+rmsle2 <- sqrt((1 / nrow(validation.subset) * sum((log(pred + 1) - log(validation.subset$count + 1))^2)))
+rmsle2 # OK!
+# NEW TEST END with caTools split:
+
+library(caret)
+library(e1071)
+numFolds <- trainControl(method="rf", number=10)
+fit <- train(count ~ season+holiday+workingday+weather+temp+atemp+humidity+
+               windspeed+hour+weekday+month+year,
+             data=train.subset, method="rf", trControl=numFolds)
+summary(fit)
+pred <- predict(fit, validation.subset, type="response")
 
 # -------------------------------------------------------------------------------------------------------
 # Playing with timeseries...
@@ -338,18 +422,18 @@ plot(tseries)
 library(gbm)
 
 fit <- gbm(train$count ~ .
-            ,data=train[, -c(1,10,11,12)] # remove [datetime, casual, registered, count] columns
-            ,var.monotone=NULL
-            ,distribution="gaussian"
-            ,n.trees=1200
-            ,shrinkage=0.1
-            ,interaction.depth=3
-            ,bag.fraction=0.5
-            ,train.fraction=1
-            ,n.minobsinnode=10
-            ,cv.folds=10
-            ,keep.data=TRUE
-            ,verbose=TRUE)
+           ,data=train[, -c(1,10,11,12)] # remove [datetime, casual, registered, count] columns
+           ,var.monotone=NULL
+           ,distribution="gaussian"
+           ,n.trees=1200
+           ,shrinkage=0.1
+           ,interaction.depth=3
+           ,bag.fraction=0.5
+           ,train.fraction=1
+           ,n.minobsinnode=10
+           ,cv.folds=10
+           ,keep.data=TRUE
+           ,verbose=TRUE)
 
 summary(fit, main="GBM variable importance", cex.axis=.8, cex.lab=.8, cex.main=1, cex.names=.7, las=1)
 best.iter <- gbm.perf(fit, method="cv") # Find the best iteration number
@@ -370,7 +454,7 @@ all.include.cols <- c(3,5,6,8,9,13,15,16)
 # NOTE: Skipping temp since atemp has high cor with temp, same with season (skipped)/month
 fit <- glm(train$count ~ ., data=train[, all.skip.cols], family=quasipoisson())
 fit <- glm(as.integer(count) ~ as.factor(hour) + atemp + season + weather + humidity + year, data=train,
-          na.action=na.exclude, family="poisson")
+           na.action=na.exclude, family="poisson")
 
 fit <- glm(train$count ~ ., data=train[, all.include.cols], , family="poisson")
 # Tried the one below for last glm attempt (26.08)
@@ -379,7 +463,7 @@ fit <- glm(count ~ hour + atemp + month + weather + humidity + windspeed + weekd
 
 # Try log on the outcome variable:
 fit.log <- glm(log(as.integer(count)) ~ as.factor(hour) + atemp + season + weather + humidity + year, data=train,
-           na.action=na.exclude, family="poisson")
+               na.action=na.exclude, family="poisson")
 
 require(sandwich)
 require(msm)
@@ -413,7 +497,7 @@ head(submission.log)
 write.csv(submission, file=paste0(submissionsFolder, "GLM_Poisson_benchmark_",
                                   format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
 write.csv(submission.log, file=paste0(submissionsFolder, "GLM_Poisson_Log_benchmark_",
-                                  format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
+                                      format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
 
 # -------------------------------------------------------------------------------------------------------
 # Do Random Forest
@@ -458,15 +542,16 @@ Sys.time()
 forestTrain1 <- randomForest(train$count ~ ., train[, -c(1,10,11,12)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
 forestTrain2 <- randomForest(train$count ~ ., train[, -c(1,10,11,12)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
 forestTrain3 <- randomForest(train$count ~ ., train[, -c(1,10,11,12)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
-# ntree=200 gives worse results....
 
-forestTrain1.casual <- randomForest(train$casual ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
-forestTrain2.casual <- randomForest(train$casual ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
-forestTrain3.casual <- randomForest(train$casual ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
+forestTrain1.casual <- randomForest(log(casual + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                                      windspeed+hour+weekday+month+year, data=train, mtry=4, ntree=150) # 150, 80
+forestTrain2.casual <- randomForest(log(casual + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                                      windspeed+hour+weekday+month+year, data=train, mtry=4, ntree=125) # 150, 80
 
-forestTrain1.registered <- randomForest(train$registered ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
-forestTrain2.registered <- randomForest(train$registered ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
-forestTrain3.registered <- randomForest(train$registered ~ ., train[, -c(1,3,6,10,11,12,16)], proximity=F, keep.forest=T, nodesize=50, ntree=150) # 150, 80
+forestTrain1.registered <- randomForest(log(registered + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                                          windspeed+hour+weekday+month+year, data=train, mtry=4, ntree=150) # 150, 80
+forestTrain2.registered <- randomForest(log(registered + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                                          windspeed+hour+weekday+month+year, data=train, mtry=4, ntree=125) # 150, 80
 
 forestCombined <- combine(forestTrain1, forestTrain2, forestTrain3)
 print(forestCombined)
@@ -474,27 +559,51 @@ forestCombined$importance
 # Nice importance plot:
 varImpPlot(forestCombined, cex=.8, col="blue", pch=19, main="RF Importance Plot")
 
-pred <- predict(forestCombined, test, type="response")
+pred <- (predict(forestCombined, test, type="response"))
 pred[1:50]
 
 forestCombined.casual <- combine(forestTrain1.casual, forestTrain2.casual)
+varImpPlot(forestCombined.casual, cex=.8, col="blue", pch=19, main="RF Importance Plot")
 forestCombined.registered <- combine(forestTrain1.registered, forestTrain2.registered)
-pred.casual <- predict(forestTrain1.casual, test, type="response") 
-pred.registered <- predict(forestTrain1.registered, test, type="response") 
-pred.combined <- (pred.casual + pred.registered) / 2 
+varImpPlot(forestCombined.registered, cex=.8, col="blue", pch=19, main="RF Importance Plot")
+pred.casual <- exp(predict(forestCombined.casual, test, type="response"))
+pred.registered <- exp(predict(forestCombined.registered, test, type="response")) 
+pred.combined <- (pred.casual + pred.registered)
 pred.combined[1:100]
+plot(sort(pred.combined), col="blue", type="l")
+lines(sort(pred), col="red")
 
 submission=data.frame(datetime=datetime.test, count=round(pred))
 submission=data.frame(datetime=datetime.test, count=pred) # Better not to round???
 submission=data.frame(datetime=datetime.test, count=pred.combined) # Better not to round???
 head(submission)
 
+write.csv(submission, file=paste0(submissionsFolder, "RF_",
+                                  format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
+# 2RF's on registered + 2RF's on casual combined gives best result so far: 0.44745
+
+# --------------------------------------------------------------------------------------------------------------------
+
+# NEW TEST START:
+fit1 <- randomForest(log(casual + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                       windspeed+hour+weekday+month+year,
+                     data=train, ntree=80, mtry=4, nodesize=2)
+fit2 <- randomForest(log(registered + 1) ~ season+holiday+workingday+weather+atemp+humidity+
+                       windspeed+hour+weekday+month+year,
+                     data=train, ntree=80, mtry=4, nodesize=2)
+varImpPlot(fit1, col="blue", pch=16, cex=.7)
+varImpPlot(fit2, col="blue", pch=16, cex=.7)
+pred1 <- exp(predict(fit1, test, type="response"))
+pred2 <- exp(predict(fit2, test, type="response"))
+pred <- (pred1 + pred2)
+plot(pred[1:100], type="l", col="blue")
+
+submission=data.frame(datetime=datetime.test, count=pred)
 write.csv(submission, file=paste0(submissionsFolder, "RF_benchmark_",
                                   format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
+# NEW TEST END
 
-# Combination of 2 RF's predicting Count with 150 trees and train[, -c(1,3,6,10,11,12,16)] gives best entry: 0.57538
-
-# -------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------
 # Caret package (tip: Test on Sonar dataset)
 # http://cran.r-project.org/web/packages/caret/vignettes/caret.pdf
 
@@ -504,11 +613,11 @@ library(mlbench)
 all.skip.cols <- -c(1,2,3,4,5,6,10,11)
 
 inTrain <- createDataPartition(y=train$count,
-                                ## the outcome data are needed
-                                p=.75,
-                                ## The percentage of data in the
-                                ## training set
-                                list=F)
+                               ## the outcome data are needed
+                               p=.75,
+                               ## The percentage of data in the
+                               ## training set
+                               list=F)
 str(inTrain)
 training <- train[inTrain, all.skip.cols]
 testing <- train[-inTrain, all.skip.cols]
@@ -516,9 +625,9 @@ nrow(testing)
 nrow(training)
 
 ctrl <- trainControl(method="repeatedcv", # oob, rf only
-                      repeats=3,
-                      classProbs=F,
-                      summaryFunction=defaultSummary)
+                     repeats=3,
+                     classProbs=F,
+                     summaryFunction=defaultSummary)
 
 plsFit <- train(training$count ~ .
                 ,data=training
@@ -527,7 +636,7 @@ plsFit <- train(training$count ~ .
                 ,trControl=ctrl
                 ,metric="PROC" # Was: RMSE
                 #,preProc=c("center", "scale")
-                )
+)
 
 plsClasses <- predict(plsFit, newdata=testing)
 plot(plsFit)

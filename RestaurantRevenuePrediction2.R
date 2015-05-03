@@ -1,4 +1,4 @@
-# Restaurant Revenue Prediction
+# Restaurant Revenue Prediction 2
 # Deadline: 04.05.2015
 # http://www.kaggle.com/c/restaurant-revenue-prediction
 
@@ -28,9 +28,11 @@ SetStandardOptions()
 dataFolder <- "C:/coding/Kaggle/RestaurantRevenuePrediction/Data/"
 submissionsFolder <- "C:/coding/Kaggle/RestaurantRevenuePrediction/Submissions/"
 
+colClasses <- c("integer","character","character","character",rep("factor",38),"numeric")
+
 if (file.exists(paste0(dataFolder, "train.rda")) == F) {
-  train <- read.csv(paste0(dataFolder, "train.csv"), header=T, sep=",", stringsAsFactors=T, encoding="UTF-8")
-  test <- read.csv(paste0(dataFolder, "test.csv"), header=T, sep=",", stringsAsFactors=T, encoding="UTF-8")
+  train <- read.csv(paste0(dataFolder, "train.csv"), header=T, sep=",", colClasses=colClasses, encoding="UTF-8")
+  test <- read.csv(paste0(dataFolder, "test.csv"), header=T, sep=",", colClasses=colClasses[-length(colClasses)], encoding="UTF-8")
   save(train, file=paste0(dataFolder, "train.rda"))
   save(test, file=paste0(dataFolder, "test.rda"))
 } else {
@@ -103,10 +105,6 @@ par(mfrow=c(1,1))
 # Create a cumulative revenue col? See description page and:
 # https://www.kaggle.com/c/restaurant-revenue-prediction/forums/t/13021/revenue-cumulative
 
-# TODO: Convert OpenDate to Date? FIX mm/dd/yyyy format? as.POSIX?
-train$Open.Date <- as.character(train$Open.Date)
-test$Open.Date <- as.character(test$Open.Date)
-
 # Extract year, month and day from dates:
 train$day<-as.factor(day(as.POSIXlt(train$Open.Date, format="%m/%d/%Y")))
 train$month<-as.factor(month(as.POSIXlt(train$Open.Date, format="%m/%d/%Y")))
@@ -115,81 +113,56 @@ test$day<-as.factor(day(as.POSIXlt(test$Open.Date, format="%m/%d/%Y")))
 test$month<-as.factor(month(as.POSIXlt(test$Open.Date, format="%m/%d/%Y")))
 test$year<-as.factor(year(as.POSIXlt(test$Open.Date, format="%m/%d/%Y")))
 
-# Convert categorical features that have more levels in test to integer:
-train$Type <- as.numeric(train$Type)
-test$Type <- as.numeric(test$Type)
-train$City <- as.numeric(train$City)
-test$City <- as.numeric(test$City)
-# TODO: Can do simpler: train_cols <- data.frame(lapply(train_cols,as.numeric))
-
 #Log Transform P Variables and Revenue
-train[, paste("P", 1:37, sep="")] <- log(1 + train[, paste("P", 1:37, sep="")])
-test[, paste("P", 1:37, sep="")] <- log(1 + test[, paste("P", 1:37, sep="")])
-train$revenue <- (1 + log(train$revenue))
+#train[, paste("P", 1:37, sep="")] <- log(1 + train[, paste("P", 1:37, sep="")])
+#test[, paste("P", 1:37, sep="")] <- log(1 + test[, paste("P", 1:37, sep="")])
+#train$revenue <- (1 + log(train$revenue))
+
+# -----------------------------------------------------------------------------------------------------------------
+
+save(train, file=paste0(dataFolder, "trainCleaned.rda"))
+save(test, file=paste0(dataFolder, "testCleaned.rda"))
+
+# -----------------------------------------------------------------------------------------------------------------
 
 names(train)
 names(test)
-train.rows <- c(3:46)
-test.rows <- c(3:45)
 
-train_cols <- train[,c(3:42,44:47)]
-labels <- as.matrix(train[,43])
-testdata <- test[,3:46]
-train_cols <- data.frame(lapply(train_cols, as.numeric)) # NOTE: all are converted to numeric here!
-testdata <- data.frame(lapply(testdata, as.numeric))
-train_cols <- cbind(train_cols, labels)
-sapply(train_cols, class)
-sapply(testdata, class)
+train_cols <- c(6:44,47)
 
+set.seed(1000)
+split <- sample.split(train$revenue, SplitRatio=0.7)
+train.subset <- subset(train, split==TRUE)
+validation.subset <- subset(train, split==FALSE)
+labels <- as.matrix(train.subset[,43])
 
-# Split in train and validation:
-# TODO: duplicate train set several times, to create a larger train set? Bootstrap?
-#which(labels > 1.3e+07)
-# Removing outliers in such a small training set, seems to worsen prediction
-#result <- CreateTrainAndValidationSets(train_cols[-which(labels > 1.3e+07), ])
+sapply(train.subset[,train_cols], class)
 
-test$City <- as.factor(test$City)
-
-train2 <- train
-train2$revenue <- log(train2$revenue + 1)
-train2$Days.open <- log(train2$Days.Open + 1)
-train2$City <- factor(train2$City, levels=levels(test$City))
-
-result <- CreateTrainAndValidationSets(train2)
-train.subset <- result[[1]]
-validation.subset <- result[[2]]
-train.subset$City <- factor(train.subset$City, levels=levels(validation.subset$City))
+validation.subset$labels <- validation.subset$revenue
 
 # Try to duplicate train set:
 # http://stackoverflow.com/questions/8753531/repeat-data-frame-n-times
-n <- 15
+#n <- 15
 #train.subset2 <- train.subset[rep(seq_len(nrow(train.subset)), n), ]
-train.subset2 <- do.call("rbind", replicate(n, train.subset, simplify = FALSE))
+#train.subset2 <- do.call("rbind", replicate(n, train.subset, simplify = FALSE))
 
-# Try in full train set:
-model.glm <- lm(revenue ~ year + Type + City + City.Group + Days.Open, data=train.subset)
-summary(model.glm)
-model.rf <- randomForest(log(labels) ~ ., data=train_cols, ntrees=50, importance=T)
-model.lm <- lm(labels ~ ., data=train_cols)
-model.svm <- svm(y=labels, x=train_cols, cost=10, scale=T, type="eps-regression")
+model.rf <- randomForest(log(revenue) ~ ., data=train.subset[, train_cols], ntrees=150, importance=T)
+varImpPlot(model.rf, cex=.7, col="blue", pch=16)
 
-p <- predict(model.glm, newdata=validation.subset)
-p <- predict(model.rf, newdata=testdata)
-p <- predict(model.lm, newdata=testdata)
-p <- predict(model.svm, newdata=testdata)
+model.lm <- lm(revenue ~ ., data=train.subset[, train_cols])
+summary(model.lm)
+#model.svm <- svm(y=labels, x=train.subset[, train_cols], cost=10, scale=T, type="eps-regression")
+
+p <- exp(predict(model.rf, newdata=validation.subset))
+
+plot(validation.subset$revenue, type="l")
+lines(p, col="red")
 
 #------------------------------------------------------------------------------------------------------------------
 # Try train and validation subsets:
 
 # NOTE: If you log-transform revenue, you have to do exp(predict(...)) !!!
 # ------------------------------------------------------------------------
-
-model.rf <- randomForest(labels ~ ., data=train.subset, ntrees=250, importance=T)
-varImpPlot(model.rf, cex=.7, col="blue", pch=16)
-model.glm <- glm(labels ~ ., data=train.subset, family="poisson")
-model.lm <- lm(labels ~ ., data=train.subset)
-summary(model.lm)
-model.svm <- svm(labels ~ ., data=train.subset, cost=10, scale=T, type="eps-regression")
 
 library(caret)
 library(Boruta)
@@ -198,14 +171,14 @@ important <- Boruta(labels ~ ., data=train.subset)
 model.caret <- train(labels ~ ., data=train.subset[, c(important$finalDecision != "Rejected", TRUE)])
 
 p <- predict(model.caret, newdata=validation.subset)
-p <- predict(model.rf, newdata=validation.subset, type="response")) # Using log on outcome
+p <- exp(predict(model.rf, newdata=validation.subset, type="response")) # Using log on outcome
 p <- predict(model.glm, newdata=validation.subset, type="response")
 p <- predict(model.lm, newdata=validation.subset, type="response")
 p <- predict(model.svm, newdata=validation.subset, type="response")
 
 if (min(p) < min(validation.subset$labels)) min.p <- min(p) else min.p <- min(validation.subset$labels)
 if (max(p) > max(validation.subset$labels)) max.p <- max(p) else max.p <- max(validation.subset$labels)
-    
+
 plot(p, type="o", col="blue", main="Prediction result", ylim=c(min.p, max.p))
 lines(validation.subset$labels, col="red", type="o")
 p[1:10]
@@ -215,16 +188,10 @@ score <- abs(validation.subset$labels - p) / validation.subset$labels
 score
 score <- sum(abs(validation.subset$labels - p))
 score
-if (max(p) > max(validation.subset$labels)) max.y <- max(p) else max.y <- max(validation.subset$labels)
-if (min(p) < min(validation.subset$labels)) min.y <- min(p) else min.y <- min(validation.subset$labels)
-plot(validation.subset$labels, type="o", col="blue", ylim=c(min.y, max.y), main="Pred ~ y", ylab="Revenue")
-lines(p, col="red", type="o")
-
-# TODO: Do a hist on predictions for svm as well as randomforest
-hist(p)
 
 submission <- data.frame(Id=0:(nrow(test)-1), Prediction=p)
 head(submission)
+
 # ---------------------------------------------------------------------------------------------------
 #save(submission.gbm, file=paste0(submissionsFolder, "submission.rda"))
 KaggleSubmission(submission, submissionsFolder, "SVM")   

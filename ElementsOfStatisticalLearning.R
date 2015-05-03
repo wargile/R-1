@@ -1,6 +1,14 @@
 # Elements of Statistical Learning
+# --------------------------------
 # http://www-bcf.usc.edu/~gareth/ISL/data.html
+# http://statweb.stanford.edu/~tibs/ElemStatLearn/data.html
 # See: UCI Machine Learning Repository - http://archive.ics.uci.edu/ml/
+
+set.seed(1000)
+SetStandardOptions()
+folder <- "C:/coding/R/Coursera/edX StatisticalLearning/Datasets/"
+package.install("ElemStatLearn")
+library(ElemStatLearn)
 
 # Challenges:
 
@@ -17,12 +25,17 @@ data(phoneme)
 hr <- read.table("http://www-stat.stanford.edu/~tibs/ElemStatLearn/datasets/SAheart.data",
                  sep=",",head=T,row.names=1)
 head(hr)
+str(hr)
 dim(hr)
 sapply(hr, class)
-pairs(hr[,c(-4,-6,-10)], col=hr$chd + 2)
+pairs(hr[,c(-4,-6,-10)], col=hr$chd + 2, cex=1, cex.labels=1)
+pairs(hr[,c(-4,-6,-10)], col=c("red", "turquoise"), cex=.8, cex.labels=1)
 hr.lr <- glm(chd ~ sbp + tobacco + ldl + famhist + obesity + alcohol + age , family = binomial , data=hr)
 summary(hr.lr)
-
+heartfit <- glm(chd ~ ., data=hr, family=binomial)
+heartfit <- glm(chd ~ tobacco+ldl+typea+famhist+age, data=hr, family=binomial)
+summary(heartfit)
+CorrelationPlot(hr)
 
 # 4) Customize an email spam detection system
 # http://archive.ics.uci.edu/ml/machine-learning-databases/spambase/
@@ -74,8 +87,8 @@ b0 <- MyLinearRegressionIntercept(x, y)
 b1 <- MyLinearRegressionSlope(x, y)
 Prob.X <- (e^(b0 + b1*x)) / (1 + e^(b0 + b1*x))
 Prob.X
-log(Prob.X/(1-Prob.X)) # = B0 + B1*X = model1$fitted = log odds/logit transformation function
-round(log(Prob.X/(1-Prob.X)))
+log(Prob.X / (1 - Prob.X)) # = B0 + B1*X = model1$fitted = log odds/logit transformation function
+round(log(Prob.X / (1 - Prob.X)))
 y
 model1 <- lm(y ~ x)
 summary(model1)
@@ -104,7 +117,7 @@ fit <- lm(Sales ~ TV, data=Advertising)
 coef(fit)
 summary(fit)
 # Plot with nice graphics (note the 'segments' function call): 
-plot(Sales ~ TV, data = Advertising, type = "n", cex.axis=.8)
+plot(Sales ~ TV, data = Advertising, type = "n")
 segments(Advertising$TV, Advertising$Sales, Advertising$TV, predict(fit, Advertising), col = "#cccccc")
 points(Sales ~ TV, data = Advertising, pch = 21, col = "#990000", bg = "#ffcccc")
 abline(fit, col = "blue")

@@ -37,7 +37,7 @@ library(ROCR)
 
 GetAUC <- function(model, dataset, depvar, type="prob") {
   #result <- as.numeric(performance(prediction(predict(model, type="response", newdata=dataset), depvar), "auc")@y.values)
-  if (class(model)[1] == "glm")
+  if (class(model)[1] %in% c("glm","gbm"))
     result <- as.numeric(performance(prediction(predict(model, type="response", newdata=dataset), depvar), "auc")@y.values)
   else if (class(model)[2] == "randomForest")
     result <- as.numeric(performance(prediction(predict(model, type="prob", newdata=dataset)[,2], depvar), "auc")@y.values)
@@ -94,6 +94,33 @@ GetQuestionMarks <- function(data) {
     ifelse(sum(result) == - 1, 0, length(result))
   })
   return (as.integer(question.marks)+1)
+}
+
+CreateCorpus2 <- function(data, threshold=0.99) {
+  library(tm)
+  # Create corpus
+  corpus = Corpus(VectorSource(data))
+  # corpus[[1]]
+  # Pre-process data
+  corpus = tm_map(corpus, tolower)
+  # IMPORTANT NOTE: If you are using the latest version of the tm package, you will need to run the following line before continuing
+  # (it converts corpus to a Plain Text Document). This is a recent change having to do with the tolower function that occurred after
+  # this video was recorded.)
+  corpus = tm_map(corpus, PlainTextDocument)
+  corpus = tm_map(corpus, removePunctuation)
+  corpus = tm_map(corpus, removeWords, stopwords("english"))
+  corpus = tm_map(corpus, stemDocument)
+  # Create matrix
+  dtm = DocumentTermMatrix(corpus)
+  # dtm
+  # str(dtm)
+  # Remove sparse terms
+  dtm = removeSparseTerms(dtm, threshold)
+  # dtm
+  # Create data frame
+  labeledTerms = as.data.frame(as.matrix(dtm))
+  colnames(labeledTerms) <- make.names(colnames(labeledTerms))
+  return(list(labeledTerms, dtm)) # Return a list with 1) the sparse matrix df and 2) the dtm
 }
 
 CreateCorpus <- function(data, threshold=0.99, create.bigrams=F) {
@@ -462,11 +489,10 @@ barplot(with(train[train$WordCount > 1500,], tapply(WordCount, Popular, mean)),
 barplot(with(train[train$WordCount <= 1500,], tapply(WordCount, Popular, mean)),
         main="WordCount (<= 1500) by Popular 0/1", col=c("orange","darkcyan"))
 par(mfrow=c(1,1))
-barplot(with(train, tapply(WordCount, Popular, mean)), main="WordCount by Popular 1/0", col=c("orange","darkcyan"))
 
-barplot(with(train, tapply(WordCountAbstract, Popular, mean)), main="WordCountAbstract by Popular 1/0", col=c("orange","darkcyan"))
-barplot(with(train, tapply(WordCountHeadline, Popular, mean)), main="WordCountHeadline by Popular 1/0", col=c("orange","darkcyan"))
-barplot(with(train, tapply(as.numeric(Hour), Popular, mean)), main="Hour by Popular 1/0", col=c("orange","darkcyan"))
+barplot(with(train, tapply(WordCountAbstract, Popular, mean)), main="WordCountAbstract by Popular 0/1", col=c("orange","darkcyan"))
+barplot(with(train, tapply(WordCountHeadline, Popular, mean)), main="WordCountHeadline by Popular 0/1", col=c("orange","darkcyan"))
+barplot(with(train, tapply(as.numeric(Hour), Popular, mean)), main="Hour by Popular 0/1", col=c("orange","darkcyan"))
 
 hist(train$WordCount, col="wheat", main="WordCount") # Only WordCount is right skewed
 hist(train$WordCountHeadline, col="wheat", main="WordCountHeadline")
@@ -498,14 +524,15 @@ result <- CreateCorpus(train.total$Headline, 0.995) # Was: 0.99, then 0.98, then
 result <- CreateCorpus(train.total$Abstract, 0.99)
 result <- CreateCorpus(train.total$Snippet, 0.997)
 result <- CreateCorpus(train.total$Snippet, 0.997, T)
-result <- CreateCorpus(c(train.total$Headline, train.total$Abstract), 0.995, F)
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.99) # GLM: AUC=?
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.995) # GLM: AUC=0.7362
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.99) # GLM: AUC=0.6801
 
 #result <- CreateCorpus(c(train.total$Abstract, train.total$Headline), 0.987) # Try a combined corpus
 corpus <- result[[1]] # Get the sparse DTM as df 
 #corpus
 dtm <- result[[2]] # Get the sparse DTM
 dtm
-colSums(corpus)
 dim(corpus)
 
 par(mar=c(6,3,2,1))
@@ -523,8 +550,6 @@ table(corpus$Popular, corpus$New)
 table(corpus$Popular, corpus$York)
 table(corpus$Popular, corpus$Week)
 table(corpus$Popular, corpus$Fashion)
-model.glm <- glm(as.factor(Popular) ~ ., data=corpus[,244:251], family=binomial(link="logit"))
-summary(model.glm)
 
 # ------------------------------------------------------------------------------------------------------------------------------
 
@@ -536,8 +561,8 @@ wordCloud <- wordcloud(colnames(corpus), colSums(corpus), scale=c(4, 0.85), colo
 # ------------------------------------------------------------------------------------------------------------------------------
 
 # Add predictors
-temp <- GetNegAndPosScore(train, "Abstract")
-corpus$PhraseScore <- as.factor(temp$PhraseScore)
+#temp <- GetNegAndPosScore(train, "Abstract")
+#corpus$PhraseScore <- as.factor(temp$PhraseScore)
 
 corpus$Weekday <- train$Weekday
 corpus$Hour <- train$Hour
@@ -548,16 +573,16 @@ corpus$WordCountLog <- train$WordCountLog # NOTE: log(wordcount) TEST: Works bes
 corpus$WordCountHeadline <- train$WordCountHeadline
 corpus$WordCountAbstract <- train$WordCountAbstract
 
-corpus$WordCountCut <- train$WordCountCut
-corpus$WordCountLogCut <- train$WordCountLogCut
+#corpus$WordCountCut <- train$WordCountCut
+#corpus$WordCountLogCut <- train$WordCountLogCut
 # corpus$WordCountHeadlineCut <- train$WordCountHeadlineCut
 # corpus$WordCountAbstractCut <- train$WordCountAbstractCut
 
 corpus$QuestionMarks <- train$QuestionMarks # TEST!
 corpus$NewsDesk <- train$NewsDesk
-#corpus$NewsDeskImputed <- train.imputed$NewsDesk
+corpus$NewsDeskImputed <- train.imputed$NewsDesk
 corpus$SectionName <- train$SectionName
-#corpus$SectionNameImputed <- train.imputed$SectionName
+corpus$SectionNameImputed <- train.imputed$SectionName
 corpus$SubsectionName <- train.total$SubsectionName
 #corpus$SubsectionNameImputed <- train.imputed$SubsectionName
 corpus$Popular <- as.factor(train$Popular)
@@ -571,6 +596,13 @@ sapply(corpus, class)
 # dim(train.subset) # Should be equal
 # http://www.r-bloggers.com/an-intro-to-ensemble-learning-in-r/
 
+# TEST: Scale some vars for GLM/GLMNET:
+corpus.scaled <- corpus
+corpus.scaled$WordCount <- scale(corpus$WordCount)
+corpus.scaled$WordCountLog <- scale(corpus$WordCountLog)
+corpus.scaled$WordCountHeadline <- scale(corpus$WordCountHeadline)
+corpus.scaled$WordCountAbstract <- scale(corpus$WordCountAbstract)
+
 # Create train and validation sets
 result <- CreateTrainAndValidationSets(corpus)
 train.subset <- result[[1]]
@@ -578,11 +610,20 @@ validation.subset <- result[[2]]
 # or do:
 library(caTools)
 set.seed(1000)
-split <- sample.split(corpus$Popular, SplitRatio=0.75)
+split <- sample.split(corpus$Popular, SplitRatio=0.7)
 train.subset <- subset(corpus, split==TRUE)
 validation.subset <- subset(corpus, split==FALSE)
 corpus.train <- subset(corpus, split==TRUE)
 corpus.validation <- subset(corpus, split==FALSE)
+
+# Same, quantitative predictors scaled
+set.seed(1000)
+split <- sample.split(corpus.scaled$Popular, SplitRatio=0.7)
+train.subset <- subset(corpus.scaled, split==TRUE)
+validation.subset <- subset(corpus.scaled, split==FALSE)
+corpus.train <- subset(corpus.scaled, split==TRUE)
+corpus.validation <- subset(corpus.scaled, split==FALSE)
+
 # Get rows
 #nrow.train <- nrow(train.subset)
 #nrow.validation <- nrow(validation.subset)
@@ -591,10 +632,20 @@ corpus.validation <- subset(corpus, split==FALSE)
 
 # Try GBM
 library(gbm)
-model.gbm <- gbm(as.factor(Popular) ~ ., data=corpus.train, distribution="bernoulli", n.trees=100)
-predict.gbm <- predict(model.gbm, newdata=corpus.validation, type="response", n.trees=100)
-plot(predict.gbm, col="blue", main="predict.gbm")
-prediction.result.gbm <- table(as.integer(corpus.validation$Popular)-1, as.integer(predict.gbm)-1 > 0.5)
+GBM_NTREES = 300
+GBM_SHRINKAGE = 0.2
+GBM_DEPTH = 25
+GBM_MINOBS = 25
+# Build the GBM model
+names(corpus.train)
+x.cols <- c(17:26,28)
+GBM_model <- gbm.fit(x = corpus.train[, x.cols], y = as.integer(corpus.train$Popular)-1, distribution="bernoulli",
+                     n.trees = GBM_NTREES, shrinkage = GBM_SHRINKAGE, interaction.depth = GBM_DEPTH,
+                     n.minobsinnode = GBM_MINOBS, verbose = TRUE) 
+summary(GBM_model, las=2)
+predict.gbm <- predict(GBM_model, newdata=corpus.validation[, x.cols], type="response", n.trees=GBM_NTREES)
+plot(sort(predict.gbm), col="blue", main="predict.gbm")
+prediction.result.gbm <- table(corpus.validation$Popular, predict.gbm > 0.5)
 prediction.result.gbm
 sum(diag(prediction.result.gbm)) / sum(prediction.result.gbm)
 
@@ -630,8 +681,9 @@ model.glm <- glm(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCo
 model.glm <- glm(as.factor(Popular) ~ WordCountLog+WordCountHeadline+
                    WordCountAbstract+Weekday+Hour+QuestionMarks,
                  data=corpus.train, family=binomial)
+model.glm <- glm(as.factor(Popular) ~ WordCountLog+WordCountHeadline+WordCountAbstract,
+                 data=corpus.train, family=binomial)
 model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train, family=binomial(link="logit"))
-model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train[,c(1:245,247:249,251,255)], family=binomial(link="logit"))
 summary(model.glm)
 predict.glm <- predict(model.glm, newdata=corpus.validation, type="response")
 plot(sort(predict.glm), type="o", col="blue", main="predict.glm")
@@ -641,8 +693,6 @@ sum(diag(prediction.result.glm)) / sum(prediction.result.glm)
 anova(model.glm)
 
 # Try GLM on corpus with added predictors
-model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train[c(28:35)], family=binomial)
-summary(model.glm)
 model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train, family=binomial)
 summary(model.glm)
 predict.glm <- predict(model.glm, newdata=corpus.validation, type="response")
@@ -674,61 +724,29 @@ plot(scores, type="o", col="blue", main="RF scores")
 
 
 # Try Random Forest with added predictors (TODO: Loop though array of ntree values and get best AUC)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+
-                            WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                          data=corpus.train, nodesize=25)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+
-                            WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                          data=corpus.train) # BEST SO FAR
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCountLog+
-                            WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                          data=corpus.train)
+model.rf1 <- randomForest(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+WordCountHeadline+
+                            WordCountAbstract+Weekday+Hour+QuestionMarks,
+                          data=corpus.train) # BEST SO FAR!
+model.rf1 <- randomForest(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+
+                            WordCountHeadline+WordCountAbstract+Weekday+Hour+QuestionMarks,
+                          data=corpus.train, nodesize=2, mtry=4) # NOTE: With imputed cols
 model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+WordCountHeadline+
                             WordCountAbstract+Weekday+Hour+QuestionMarks,
-                          data=corpus.train, importance=T)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+WordCountHeadline+
-                            WordCountAbstract+Weekday+Hour+QuestionMarks+WordCountCut,
-                          data=corpus.train, importance=T)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+WordCountHeadline+
-                            WordCountAbstract+Weekday+Hour+QuestionMarks+PhraseScore,
-                          data=corpus.train, importance=T)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDeskImputed+SectionName+SubsectionName+WordCount+WordCountHeadline+
-                            WordCountAbstract+Weekday+Hour,
-                          data=corpus.train, importance=T)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+
-                            WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                          data=corpus.train, importance=T)
+                          data=corpus.train)
 varImpPlot(model.rf1, col="blue", pch=16, cex=.8)
 # *** TODO: Cross-validate RF? And/or tune number of trees
 # http://stackoverflow.com/questions/19760169/how-to-perform-random-forest-cross-validation-in-r
 
 names(corpus.train)
-model.rf2 <- randomForest(as.factor(Popular) ~ ., data=corpus.train[,c(1:27,34)])
-model.rf <- randomForest(as.factor(Popular) ~ ., data=corpus.train)
-summary(model.rf)
 # predict.rf <- predict(model.rf, newdata=corpus.validation, type="response")
-predict.rf <- predict(model.rf, newdata=corpus.validation, type="prob")
 predict.rf1 <- predict(model.rf1, newdata=corpus.validation, type="prob")
-predict.rf2 <- predict(model.rf2, newdata=corpus.validation, type="response")
-# predict.rf[,2]
-# predict.rf[predict.rf < 0] <- 0 
-# plot(sort(predict.rf), type="o", col="blue", main="predict.rf")
-plot(sort(predict.rf[,2]), type="o", col="blue", main="predict.rf")
 plot(sort(predict.rf1[,2]), type="o", col="blue", main="predict.rf1")
-plot(sort(predict.rf2), type="o", col="blue", main="predict.rf2")
-# prediction.result.rf <- table(corpus.validation$Popular, predict.rf > 0.5)
-prediction.result.rf <- table(corpus.validation$Popular, predict.rf[,2] > 0.5)
-prediction.result.rf
-sum(diag(prediction.result.rf)) / sum(prediction.result.rf)
 prediction.result.rf1 <- table(corpus.validation$Popular, predict.rf1[,2] > 0.5)
 prediction.result.rf1
 sum(diag(prediction.result.rf1)) / sum(prediction.result.rf1)
-prediction.result.rf2 <- table(corpus.validation$Popular, predict.rf2 > 0.5)
-prediction.result.rf2
-sum(diag(prediction.result.rf2)) / sum(prediction.result.rf2)
 
 # Combine the GLM and RF
-ratio <- 5
+ratio <- 4
 predict.combined <- ((predict.rf1[,2] * (ratio - 1)) + predict.glm) / ratio
 #predict.combined[predict.combined < 0] <- 0
 min(predict.combined)
@@ -769,14 +787,16 @@ sum(diag(prediction.result.rf1)) / sum(prediction.result.rf1)
 library(caret)
 library(e1071)
 getModelInfo("rf")
-numFolds <- trainControl(method="cv", number=10)
+numFolds <- trainControl(method="cv", number=10, classProbs=T)
 #cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
-train.caret <- train(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+
+corpus.train2 <- corpus.train
+corpus.train2$Popular <- as.factor(ifelse(corpus.train2$Popular == 0, "No", "Yes")) # Convert so caret doesen't bork on the name
+train.caret <- train(Popular ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+
                        WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                     data=corpus.train, method="rf", trControl=numFolds, metric="Accuracy")
+                     data=corpus.train2, method="rf", trControl=numFolds, metric="Accuracy")
 summary(train.caret)
-predict.caret <- predict(train.caret, newdata=corpus.validation)
-prediction.result.caret <- table(corpus.validation$Popular, (as.integer(predict.caret)-1) > 0.5)
+predict.caret <- predict(train.caret, newdata=corpus.validation, type="prob")
+prediction.result.caret <- table(corpus.validation$Popular, predict.caret[,2] > 0.5)
 prediction.result.caret
 sum(diag(prediction.result.caret)) / sum(prediction.result.caret)
 
@@ -785,6 +805,7 @@ sum(diag(prediction.result.caret)) / sum(prediction.result.caret)
 # Get AUC
 #GetAUC(train.caret, corpus.validation, corpus.validation$Popular)
 GetAUC(model.glm, corpus.validation, corpus.validation$Popular)
+GetAUC(model.gbm, corpus.validation, corpus.validation$Popular)
 GetAUC(model.rf, corpus.validation, corpus.validation$Popular)
 GetAUC(model.rf1, corpus.validation, corpus.validation$Popular)
 GetAUC(model.nb, corpus.validation, corpus.validation$Popular)
@@ -798,6 +819,9 @@ library(ROCR)
 par(mar=c(3,3,2,2))
 predROCR = prediction(predict.rf1[,2], corpus.validation$Popular)
 predROCR = prediction(predict.glm, corpus.validation$Popular)
+predROCR = prediction(predict.gbm, corpus.validation$Popular)
+predROCR = prediction(predict.combined, corpus.validation$Popular)
+predROCR = prediction(predict.caret[,2], corpus.validation$Popular)
 perfROCR = performance(predROCR, "tpr", "fpr")
 plot(perfROCR, colorize=TRUE, main="ROCR on Corpus", lwd=3)
 lines(c(0,1),c(0,1), col="gray", lty=2)
@@ -895,28 +919,36 @@ table(clusterList.km[[2]]$Popular)
 
 
 # ------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------
 
 # Create the final model
 nrow.train <- nrow(train)
 nrow.test <- nrow(test)
 #train.corpora <- c(train.total$Headline, train.total$Abstract)
 #test.corpora <- c(test$Headline, test$Abstract)
-result <- CreateCorpus(c(train.total$Headline, test$Headline), 0.987) # BEST SO FAR
+result <- CreateCorpus(c(train.total$Headline, test$Headline), 0.997) # BEST SO FAR
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract, test$Headline, test$Abstract), 0.99) # TEST!
 #result <- CreateCorpus(c(train.corpora, test.corpora), 0.987)
 corpus <- result[[1]]
 dtm <- result[[2]]
+dtm
 corpus.train <- head(corpus, n=nrow.train)
 corpus.test <- tail(corpus, n=nrow.test)
+dim(train)
+dim(corpus.train)
+dim(test)
+dim(corpus.test)
 
 corpus.train$Weekday <- train$Weekday
 corpus.train$Hour <- train$Hour
 corpus.train$WordCount <- train$WordCount
+corpus.train$WordCountLog <- train$WordCountLog
 corpus.train$WordCountHeadline <- train$WordCountHeadline
 corpus.train$WordCountAbstract <- train$WordCountAbstract
 
-corpus.train$WordCountLogCut <- train$WordCountLogCut
-corpus.train$WordCountHeadlineCut <- train$WordCountHeadlineCut
-corpus.train$WordCountAbstractCut <- train$WordCountAbstractCut
+#corpus.train$WordCountLogCut <- train$WordCountLogCut
+#corpus.train$WordCountHeadlineCut <- train$WordCountHeadlineCut
+#corpus.train$WordCountAbstractCut <- train$WordCountAbstractCut
 
 corpus.train$QuestionMarks <- train$QuestionMarks # TEST!
 # corpus.train$WordCountLog <- train$WordCountLog
@@ -924,21 +956,24 @@ corpus.train$QuestionMarks <- train$QuestionMarks # TEST!
 corpus.train$NewsDesk <- train$NewsDesk
 corpus.train$SectionName <- train$SectionName
 corpus.train$SubsectionName <- train$SubsectionName
-#corpus.train$SectionName <- train.imputed$SectionName # TEST imputed!
-#corpus.train$SubsectionName <- train.imputed$SubsectionName # TEST imputed!
+corpus.train$NewsDeskImputed <- train.imputed$NewsDesk
+corpus.train$SectionNameImputed <- train.imputed$SectionName # TEST imputed!
+#corpus.train$SubsectionNameImputed <- train.imputed$SubsectionName # TEST imputed!
 corpus.train$Popular <- train$Popular
 dim(corpus.train)
 dim(train)
+sapply(corpus.train, class)
 
 corpus.test$Weekday <- test$Weekday
 corpus.test$Hour <- test$Hour
 corpus.test$WordCount <- test$WordCount
+corpus.test$WordCountLog <- test$WordCountLog
 corpus.test$WordCountHeadline <- test$WordCountHeadline
 corpus.test$WordCountAbstract <- test$WordCountAbstract
 
-corpus.test$WordCountLogCut <- test$WordCountLogCut
-corpus.test$WordCountHeadlineCut <- test$WordCountHeadlineCut
-corpus.test$WordCountAbstractCut <- test$WordCountAbstractCut
+#corpus.test$WordCountLogCut <- test$WordCountLogCut
+#corpus.test$WordCountHeadlineCut <- test$WordCountHeadlineCut
+#corpus.test$WordCountAbstractCut <- test$WordCountAbstractCut
 
 corpus.test$QuestionMarks <- test$QuestionMarks # TEST!
 # corpus.test$WordCountLog <- test$WordCountLog
@@ -947,14 +982,36 @@ corpus.test$QuestionMarks <- test$QuestionMarks # TEST!
 corpus.test$NewsDesk <- factor(test$NewsDesk, levels=levels(train$NewsDesk)) # NOTE syntax to create the same levels in train/test
 corpus.test$SectionName <- factor(test$SectionName, levels=levels(train$SectionName)) # NOTE syntax to create the same levels in train/test
 corpus.test$SubsectionName <- factor(test$SubsectionName, levels=levels(train$SubsectionName)) # NOTE syntax to create the same levels in train/test
-#corpus.test$SectionName <- test.imputed$SectionName # TEST imputed!
-#corpus.test$SubsectionName <- test.imputed$SubsectionName # TEST imputed!
+corpus.test$NewsDeskImputed <- factor(test.imputed$NewsDesk, levels=levels(train$NewsDesk)) # NOTE syntax to create the same levels in train/test
+corpus.test$SectionNameImputed <- factor(test.imputed$SectionName, levels=levels(train$SectionName)) # TEST imputed!
+corpus.test$SubsectionNameImputed <- test.imputed$SubsectionName # TEST imputed!
 dim(corpus.test)
 dim(test)
 
+# Do GBM
+library(gbm)
+GBM_NTREES = 300
+GBM_SHRINKAGE = 0.2
+GBM_DEPTH = 25
+GBM_MINOBS = 25
+# Build the GBM model
+names(corpus.train)
+GBM_model <- gbm.fit(x = corpus.train[, 220:229], y = corpus.train$Popular, distribution="bernoulli",
+                     n.trees = GBM_NTREES, shrinkage = GBM_SHRINKAGE, interaction.depth = GBM_DEPTH,
+                     n.minobsinnode = GBM_MINOBS, verbose = TRUE) 
+summary(GBM_model, las=2)
+predict.gbm <- predict(GBM_model, newdata=corpus.test[, 220:229], type="response", n.trees=GBM_NTREES)
+plot(sort(predict.gbm), type="o", col="blue", main="predict.gbm, full dataset")
+min(predict.gbm)
+max(predict.gbm)
 
 # Do GLM
 model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train, family=binomial)
+model.glm <- glm(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+WordCountHeadline+
+                            WordCountAbstract+Weekday+Hour+QuestionMarks,
+                          data=corpus.train, family=binomial(link="logit"))
+model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train[, c(1:100,113)], family=binomial)
+
 summary(model.glm)
 predict.glm <- predict(model.glm, newdata=corpus.test, type="response")
 predict.glm
@@ -967,17 +1024,10 @@ anova(model.glm)
 model.rf <- randomForest(Popular ~ ., data=corpus.train)
 model.rf <- randomForest(as.factor(Popular) ~ ., data=corpus.train)
 summary(model.rf)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+WordCountHeadline+
-                            WordCountAbstract+Weekday+Hour+QuestionMarks+WordCountLogCut+WordCountAbstractCut+
-                            WordCountHeadlineCut,
-                          data=corpus.train, importance=T)
+model.rf1 <- randomForest(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+WordCountHeadline+
+                            WordCountAbstract+Weekday+Hour+QuestionMarks,
+                          data=corpus.train) # BEST SO FAR!
 varImpPlot(model.rf1, col="blue", pch=16, cex=.8)
-model.rf1 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+WordCountHeadline+WordCountAbstract+Weekday+Hour,
-                          data=corpus.train)
-model.rf2 <- randomForest(as.factor(Popular) ~ NewsDesk+SectionName+SubsectionName+WordCount+Weekday+Hour,
-                          data=corpus.train)
-model.rf2 <- randomForest(Popular ~ NewsDesk+SectionName+SubsectionName+WordCount+Weekday+Hour,
-                          data=corpus.train)
 predict.rf <- predict(model.rf, newdata=corpus.test, type="prob")
 predict.rf <- predict(model.rf, newdata=corpus.test, type="response")
 predict.rf1 <- predict(model.rf1, newdata=corpus.test, type="prob")
@@ -1001,8 +1051,11 @@ min(predict.rf2)
 max(predict.rf2)
 
 # combine rf and glm
-ratio <- 5
-predict.combined <- ((predict.rf[,2] * (ratio - 1)) + predict.glm) / ratio
+ratio <- 2
+# RF and GLM:
+predict.combined <- ((predict.rf1[,2] * (ratio - 1)) + predict.glm) / ratio
+# RF and GBM:
+predict.combined <- ((predict.rf1[,2] * (ratio - 1)) + predict.gbm) / ratio
 min(predict.combined)
 max(predict.combined)
 plot(sort(predict.combined), type="o", col="blue", main="predict.combined")
@@ -1011,6 +1064,7 @@ plot(sort(predict.combined), type="o", col="blue", main="predict.combined")
 
 # Get ROC
 GetAUC(model.glm, corpus.train, corpus.train$Popular)
+GetAUC(model.gbm, corpus.train, corpus.train$Popular)
 GetAUC(model.rf, corpus.train, corpus.train$Popular)
 GetAUC(model.rf1, corpus.train, corpus.train$Popular)
 GetAUC(model.rf2, corpus.train, corpus.train$Popular)
@@ -1033,8 +1087,8 @@ dat_h2o <- as.h2o(localH2O, corpus.train, key='train')
 dat_h2o.test <- as.h2o(localH2O, corpus.validation, key='test')
 dat_h2o <- as.h2o(localH2O, corpus.train, key='train')
 dat_h2o.test <- as.h2o(localH2O, corpus.test, key='test')
-x.cols <- c(25:30)
-y.col <- 31
+x.cols <- c(115:126)
+y.col <- 127
 
 model.dl <- 
   h2o.deeplearning(x=x.cols, # column numbers for predictors
@@ -1124,19 +1178,21 @@ prediction <- predict.rf1[,2] # TODO: Replace with whatever model works best
 prediction <- predict.rf2[,2] # TODO: Replace with whatever model works best
 prediction <- predict.rf # TODO: Replace with whatever model works best
 prediction <- predict.rf2 # TODO: Replace with whatever model works best
+prediction <- predict.combined # TODO: Replace with whatever model works best
 prediction <- df_h2o_yhat_test.rf$predict
 # prediction <- predict.combined # TODO: Replace with whatever model works best
 # prediction <- df_h2o_yhat_test.rf$predict
 par(mfrow=c(2,2))
 hist(prediction, col="wheat")
-plot((prediction), col=alpha("blue", .3), pch=21, bg=alpha("cyan", .3), main="Prediction result")
-plot(sort(prediction), type="o", col=alpha("blue", .3), main="Sorted prediction curve")
+plot((prediction), col="blue", pch=21, bg="cyan", main="Prediction result")
+plot(sort(prediction), type="o", col="blue", main="Sorted prediction curve")
 par(mfrow=c(1,1))
 # Create the submission file
+options("scipen"=100, "digits"=8)
 MySubmission <- data.frame(UniqueID=test$UniqueID, Probability1=prediction)
 head(MySubmission)
-KaggleSubmission(MySubmission, submissionfolder, "RF")
-# Score: 0.92900 with regular RF (classification), ntree=500, Weekday, WordCount, factor(NewsDesk),
-# factor(SectionName), factor(SubSectionName), Hour, WordCountHeadline, WordCountAbstract
+KaggleSubmission(MySubmission, submissionfolder, "RF_GLM_ensemble")
+# Score: 0.93018 with regular RF (classification, standard params), ntree=500, Weekday, WordCount, factor(NewsDeskimputed),
+# factor(SectionNameImputed), factor(SubSectionName), Hour, WordCountHeadline, WordCountAbstract
 # NOTE: No bag-of-words used for best score!
 

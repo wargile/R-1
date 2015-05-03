@@ -823,3 +823,120 @@ table(selectedLoans$not.fully.paid)
 # a slightly lower rate than average, resulting in a significant increase in the profit from our investor's $100 investment.
 # Although the logistic regression models developed in this problem did not have large AUC values, we see that they still
 # provided the edge needed to improve the profitability of an investment portfolio.
+
+
+# 4) PREDICTING THE BASEBALL WORLD SERIES CHAMPION (OPTIONAL)
+# -----------------------------------------------------------
+# Data from: http://www.baseball-reference.com/
+
+baseball <- read.csv(paste0(folder, "baseball.csv"))
+str(baseball)
+# As a reminder, this dataset contains data concerning a baseball team's performance in a given year.
+# It has the following variables:
+# Team: A code for the name of the team
+# League: The Major League Baseball league the team belongs to, either AL (American League) or NL (National League)
+# Year: The year of the corresponding record
+# RS: The number of runs scored by the team in that year
+# RA: The number of runs allowed by the team in that year
+# W: The number of regular season wins by the team in that year
+# OBP: The on-base percentage of the team in that year
+# SLG: The slugging percentage of the team in that year
+# BA: The batting average of the team in that year
+# Playoffs: Whether the team made the playoffs in that year (1 for yes, 0 for no)
+# RankSeason: Among the playoff teams in that year, the ranking of their regular season records (1 is best)
+# RankPlayoffs: Among the playoff teams in that year, how well they fared in the playoffs. The team winning the
+#   World Series gets a RankPlayoffs of 1.
+# G: The number of games a team played in that year
+# OOBP: The team's opponents' on-base percentage in that year
+# OSLG: The team's opponents' slugging percentage in that year
+
+# PROBLEM 1.1 - LIMITING TO TEAMS MAKING THE PLAYOFFS. Answer: 1232 team/year pairs
+# Each row in the baseball dataset represents a team in a particular year.
+# How many team/year pairs are there in the whole dataset?
+nrow(baseball)
+
+# PROBLEM 1.2 - LIMITING TO TEAMS MAKING THE PLAYOFFS. Answer: Total number of years in dataset: 47
+length(table(baseball$Year))
+
+# PROBLEM 1.3 - LIMITING TO TEAMS MAKING THE PLAYOFFS. Answer: 244 teams made it to the playoffs
+baseball <- subset(baseball, Playoffs == 1)
+nrow(baseball)
+str(baseball)
+
+# PROBLEM 1.4 - LIMITING TO TEAMS MAKING THE PLAYOFFS. Answer: 2,4,8 and10 teams made it per year
+table(baseball$Year)
+table(table(baseball$Year)) # NOTE: Syntax here!
+
+# PROBLEM 2.1 - ADDING AN IMPORTANT PREDICTOR. Answer: names(PlayoffTable) returns Vector of years stored as strings (type chr) 
+PlayoffTable <- table(baseball$Year)
+names(PlayoffTable)
+
+# PROBLEM 2.2 - ADDING AN IMPORTANT PREDICTOR. Answer: To look at 1990/2001: PlayoffTable[c("1990","2001")]
+PlayoffTable[c("1990","2001")]
+
+# PROBLEM 2.3 - ADDING AN IMPORTANT PREDICTOR. Answer: PlayoffTable[as.character(baseball$Year)]
+class(baseball$Year)
+baseball$NumCompetitors <- PlayoffTable[as.character(baseball$Year)]
+str(baseball)
+
+# PROBLEM 2.4 - ADDING AN IMPORTANT PREDICTOR. Answer: 128 teams/year with 8 competitors
+nrow(baseball[baseball$NumCompetitors == 8, ])
+
+# PROBLEM 3.1 - BIVARIATE MODELS FOR PREDICTING WORLD SERIES WINNER. Answer: 197 teams did not win the World Series
+# In this problem, we seek to predict whether a team won the World Series; in our dataset this is denoted
+# with a RankPlayoffs value of 1
+baseball$WorldSeries = as.numeric(baseball$RankPlayoffs == 1)
+table(baseball$WorldSeries) # 0 = 197 rows
+
+# PROBLEM 3.2 - BIVARIATE MODELS FOR PREDICTING WORLD SERIES WINNER. Answer: Significant: Year, RA, SLG, RankSeason, NumCompetitors
+fit <- glm(WorldSeries ~ Year, data=baseball, family="binomial")
+summary(fit) # Year is significant
+fit <- glm(WorldSeries ~ RS, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ RA, data=baseball, family="binomial")
+summary(fit) # RA is significant
+fit <- glm(WorldSeries ~ W, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ OBP, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ SLG, data=baseball, family="binomial")
+summary(fit) # SLG is significant
+fit <- glm(WorldSeries ~ BA, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ RankSeason, data=baseball, family="binomial")
+summary(fit) # RankSeason is significant
+fit <- glm(WorldSeries ~ OOBP, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ OSLG, data=baseball, family="binomial")
+summary(fit)
+fit <- glm(WorldSeries ~ NumCompetitors, data=baseball, family="binomial")
+summary(fit) # NumCompetitors is significant
+fit <- glm(WorldSeries ~ League, data=baseball, family="binomial")
+summary(fit)
+
+# PROBLEM 4.1 - MULTIVARIATE MODELS FOR PREDICTING WORLD SERIES WINNER. Answer: No vars are significant!
+fit <- glm(WorldSeries ~ ., data=baseball, family="binomial")
+summary(fit) # RankSeason is significant
+
+# PROBLEM 4.2 - MULTIVARIATE MODELS FOR PREDICTING WORLD SERIES WINNER. Answer: Year/NumCompetitors have high cor (+/- 0.8 or higher)
+with(baseball, cor(Year, RA))
+with(baseball, cor(Year, RankSeason))
+with(baseball, cor(Year, NumCompetitors))
+with(baseball, cor(RA, RankSeason))
+with(baseball, cor(RA, NumCompetitors))
+with(baseball, cor(RankSeason, NumCompetitors))
+# or use:
+cor(baseball[c("Year", "RA", "RankSeason", "NumCompetitors")])
+CorrelationPlot(baseball[c("Year", "RA", "RankSeason", "NumCompetitors")])
+
+# PROBLEM 4.3 - MULTIVARIATE MODELS FOR PREDICTING WORLD SERIES WINNER. Answer: Lowest (best) AIC: 231 (WorldSeries ~ NumCompetitors)
+summary(glm(WorldSeries ~ Year, data=baseball, family="binomial")) # AIC 232.4
+summary(glm(WorldSeries ~ RA, data=baseball, family="binomial")) # AIC 237.9
+summary(glm(WorldSeries ~ RankSeason, data=baseball, family="binomial")) # AIC 238.8
+summary(glm(WorldSeries ~ NumCompetitors, data=baseball, family="binomial")) # AIC 231 (lowest)
+summary(glm(WorldSeries ~ Year + RA, data=baseball, family="binomial")) # AIC 233.9
+summary(glm(WorldSeries ~ Year + RankSeason, data=baseball, family="binomial")) # AIC 233.6
+summary(glm(WorldSeries ~ Year + NumCompetitors, data=baseball, family="binomial")) # AIC 232.9
+summary(glm(WorldSeries ~ RA + RankSeason, data=baseball, family="binomial")) # AIC 238.2
+summary(glm(WorldSeries ~ RA + NumCompetitors, data=baseball, family="binomial")) # AIC 232.7
+summary(glm(WorldSeries ~ RankSeason + NumCompetitors, data=baseball, family="binomial")) # AIC 232.5
