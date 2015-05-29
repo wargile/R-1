@@ -1,11 +1,10 @@
-# The Analytics Edge 2015
-# http://www.kaggle.com/c/15-071x-the-analytics-edge-competition-spring-2015/data
-# Deadline: 04.05.2015
+# Search Result Relevance
+# https://www.kaggle.com/c/crowdflower-search-relevance
+# Deadline: 06.07.2015
 
-# The evaluation metric for this competition is AUC.
-
-# Submission format:
-# For every observation in the test set, submission files should contain two columns: UniqueID and Probability1
+# The evaluation metric for this competition is quadratic weighted kappa, which measures the agreement between two ratings.
+# Submission format: You must submit a csv file with the product id and a predicted search relevance for each search record.
+# More info: https://www.kaggle.com/c/crowdflower-search-relevance/details/evaluation
 
 # Outcome/dependent variable: Popular, which labels if an article had 25 or more comments in its online comment section
 #   (equal to 1 if it did, and 0 if it did not)
@@ -28,6 +27,22 @@
 # - Split bag-of-words and other predictors in separate models and combine/average
 # - Get some functions and ideas from SentimentAnalysisOfMovieReviews.R (and try proper bag-of-words on that one too!)
 # - Use the "cut" function to create bins for the count variables - any improvement over using them as-is?
+
+# TIPS from others after competition ending:
+# "One other item of possible interest. I noticed a correlation between the number of posts per day and the
+# mean popularity of posts for that day (~-0.76) so I included posts per day as a feature."
+
+# "$Blank: A binary variable indicating if all three buckets (NewsDesk & SectionName & SubsectionName) are
+# blank. (I did not impute/meddle with the missing values in any way)"
+
+# Code from others:
+# https://github.com/oconnoda/Kaggle_AnalyticsEdge_Spring2015/blob/master/nytBlogsFinal.R
+# http://www.kaggle.com/c/15-071x-the-analytics-edge-competition-spring-2015/forums/t/14003/distilled-what-worked-the-best/76964#post76964
+# http://www.kaggle.com/c/15-071x-the-analytics-edge-competition-spring-2015/forums/t/14030/pls-share-your-code/76962#post76962
+# https://kaggle2.blob.core.windows.net/forum-message-attachments/76962/2441/compScriptFinal.R?sv=2012-02-12&se=2015-05-08T08%3A30%3A24Z&sr=b&sp=r&sig=rCU%2B9xKfVpk0LClw857f5rTRTBU9PCVWujokoujAWxk%3D
+# http://nbviewer.ipython.org/gist/mattsco/8dddf256244fb7d47d47
+
+
 set.seed(1000)
 SetStandardOptions()
 
@@ -524,7 +539,7 @@ result <- CreateCorpus(train.total$Headline, 0.995) # Was: 0.99, then 0.98, then
 result <- CreateCorpus(train.total$Abstract, 0.99)
 result <- CreateCorpus(train.total$Snippet, 0.997)
 result <- CreateCorpus(train.total$Snippet, 0.997, T)
-result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.99) # GLM: AUC=?
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.992) # GLM: AUC=?
 result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.995) # GLM: AUC=0.7362
 result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract), 0.99) # GLM: AUC=0.6801
 
@@ -927,7 +942,7 @@ nrow.test <- nrow(test)
 #train.corpora <- c(train.total$Headline, train.total$Abstract)
 #test.corpora <- c(test$Headline, test$Abstract)
 result <- CreateCorpus(c(train.total$Headline, test$Headline), 0.997) # BEST SO FAR
-result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract, test$Headline, test$Abstract), 0.99) # TEST!
+result <- CreateCorpus2(c(train.total$Headline, train.total$Abstract, test$Headline, test$Abstract), 0.992) # TEST!
 #result <- CreateCorpus(c(train.corpora, test.corpora), 0.987)
 corpus <- result[[1]]
 dtm <- result[[2]]
@@ -1006,7 +1021,7 @@ min(predict.gbm)
 max(predict.gbm)
 
 # Do GLM
-model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train, family=binomial)
+model.glm <- glm(as.factor(Popular) ~ ., data=corpus.train, family=binomial(link="logit"))
 model.glm <- glm(as.factor(Popular) ~ NewsDeskImputed+SectionNameImputed+SubsectionName+WordCount+WordCountHeadline+
                             WordCountAbstract+Weekday+Hour+QuestionMarks,
                           data=corpus.train, family=binomial(link="logit"))
@@ -1051,7 +1066,10 @@ min(predict.rf2)
 max(predict.rf2)
 
 # combine rf and glm
-ratio <- 2
+# load the best rf prediction
+predict.rf1 <- read.csv(paste0(submissionfolder, "Kaggle_RF_20150427_0858_BEST.csv"))
+head(predict.rf1)
+ratio <- 4
 # RF and GLM:
 predict.combined <- ((predict.rf1[,2] * (ratio - 1)) + predict.glm) / ratio
 # RF and GBM:
@@ -1193,6 +1211,6 @@ MySubmission <- data.frame(UniqueID=test$UniqueID, Probability1=prediction)
 head(MySubmission)
 KaggleSubmission(MySubmission, submissionfolder, "RF_GLM_ensemble")
 # Score: 0.93018 with regular RF (classification, standard params), ntree=500, Weekday, WordCount, factor(NewsDeskimputed),
-# factor(SectionNameImputed), factor(SubSectionName), Hour, WordCountHeadline, WordCountAbstract
+# factor(SectionNameImputed), factor(SubSectionName), Hour, WordCountHeadline, WordCountAbstract, factor(QuestionMarks)
 # NOTE: No bag-of-words used for best score!
 

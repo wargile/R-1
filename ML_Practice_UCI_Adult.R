@@ -67,6 +67,7 @@ train$wage <- as.factor(train$wage)
 #cols <- c("V5","V8","V11","V13")
 
 save(train, file="c:/coding/R/testdata/adultCleaned.rda")
+load(file="c:/coding/R/testdata/adultCleaned.rda")
 
 names(train)
 CorrelationPlot(train)
@@ -76,6 +77,14 @@ plot(sort(var(train))) # TODO: Only numeric quantitative cols
 VariancePlot(train)
 
 # TODO: Check missing values or other anomalies!
+
+train$capital.gain[train$capital.gain == 0] <- 50
+train$capital.loss[train$capital.loss == 0] <- 50
+hist(log(1 + train$capital.gain))
+hist(log(1 + train$capital.loss))
+train$capital.gain <- scale(train$capital.gain)
+train$capital.loss <- scale(train$capital.loss)
+
 
 # Split in train and validation sets
 library(caTools)
@@ -88,6 +97,7 @@ validation.subset <- subset(train, split==FALSE)
 table(train.subset$wage)[1] / nrow(train.subset) # Baseline accuracy: 0.7592
 
 # ------------------------------------------------------------------------------------------------------------------
+
 # Model selection
 
 # Remove outcome variable + country
@@ -106,9 +116,30 @@ sum(diag(result)) / sum(result)
 rmse <- MyRMSE(as.integer(pred.glm), as.integer(validation.subset$wage)-1)
 rmse
 
+# Do a bootstrap with GLM
+results <- numeric()
+for (counter in 1:20) {
+  cat("Doing round", counter, "...\n")
+  result <- CreateTrainAndValidationSets(train)
+  train.subset <- result[[1]]
+  validation.subset <- result[[2]]
+  # train.subset$native.country <- factor(train.subset$native.country, levels=levels(validation.subset$native.country))
+  fit.glm <- glm(train.subset$wage ~ age + hours.per.week + race + sex + relationship + workclass +
+                   education.num + capital.gain + capital.loss,
+                 data=train.subset, family=binomial(link="logit"))
+  pred.glm <- predict(fit.glm, newdata=validation.subset, type="response")
+  pred.glm <- ifelse(pred.glm < 0.5, 0, 1)
+  result <- table(validation.subset$wage, pred.glm)
+  result
+  results[counter] <- sum(diag(result)) / sum(result)
+}
+plot(results, type="o", col="blue", main="GLM prediction results")
+
+
 # ------------------------------------------------------------------------------------------------------------------
 
-# Train a random forest
+# Train a random forest with caret
+
 library(caret)
 numFolds <- trainControl(method="cv", number=10)
 train.caret <- train(as.factor(wage) ~ ., data=train.subset[,-14], method="rf", trControl=numFolds, metric="Accuracy")
@@ -120,12 +151,25 @@ sum(diag(result)) / sum(result)
 rmse <- MyRMSE(as.integer(predict.caret)-1, as.integer(validation.subset$wage)-1)
 rmse
 
+# Do Random Forest
+
+fit.rf <- randomForest(train.subset$wage ~ age + hours.per.week + race + sex + relationship + workclass +
+                 education.num + capital.gain + capital.loss, data=train.subset, n.trees=250)
+predict.rf <- predict(fit.rf, newdata=validation.subset, type="class")
+result <- table(validation.subset$wage, predict.rf)
+result
+# Compute accuracy
+sum(diag(result)) / sum(result)
+rmse <- MyRMSE(as.integer(predict.rf)-1, as.integer(validation.subset$wage)-1)
+rmse
+
 # ------------------------------------------------------------------------------------------------------------------
 
 # Do GBM with Bernoulli distribution (binary outcome)
 library(gbm)
 
-fit.gbm <- gbm(train.subset$wage ~ .
+fit.gbm <- gbm(train.subset$wage ~ train.subset$wage ~ age + hours.per.week + race + sex +
+                 relationship + workclass + education.num + capital.gain + capital.loss,
            ,data=train.subset
            ,var.monotone=NULL
            ,distribution="bernoulli"
@@ -186,3 +230,21 @@ cost <- function(y, pred) mean(abs(y-pred) > 0.5)
 cv.glm(data=train.subset, glmfit=fit, cost(as.integer(train.subset$wage)-1, fit$fitted), K=10)
 
 rmse <- DoCV(train.subset$wage, train.subset, 10)
+
+# ------------------------------------------------------------------------------------------------------------------
+
+# Show ROCR colorized plot
+library(ROCR)
+par(mar=c(3,3,2,2))
+predROCR = prediction(as.integer(predict.rf)-1, as.integer(validation.subset$wage)-1)
+perfROCR = performance(predROCR, "tpr", "fpr")
+plot(perfROCR, colorize=TRUE, main="ROCR on Corpus", lwd=3)
+lines(c(0,1),c(0,1), col="gray", lty=2)
+# TODO: Add text
+# http://www.r-bloggers.com/a-small-introduction-to-the-rocr-package/
+# NOTE: At a cutoff of 0.6-0.8, we predict a good TP rate, while at the same time having a low FP rate.
+par(mar=c(3,3,2,1))
+# Compute AUC
+performance(predROCR, "auc")@y.values
+sn <- slotNames(predROCR)
+sapply(sn, function(x) length(slot(predROCR, x)))

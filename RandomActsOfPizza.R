@@ -557,41 +557,46 @@ cor(as.integer(train2$requester_received_pizza),
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # Create a corpusPizza on the request_text variable, and split in train and validation subsets:
 
-library(tm)
-# Split in train and validation sets:
-corpusPizza = Corpus(VectorSource(train$request_text))
-corpusPizza[[1]]
-# Pre-process data
-corpusPizza = tm_map(corpusPizza, tolower)
-# IMPORTANT NOTE: If you are using the latest version of the tm package, you will need to run the following line before continuing
-# (it converts corpus to a Plain Text Document). This is a recent change having to do with the tolower function
-corpusPizza = tm_map(corpusPizza, PlainTextDocument)
-corpusPizza = tm_map(corpusPizza, removePunctuation)
-corpusPizza = tm_map(corpusPizza, removeWords, stopwords("english"))
-corpusPizza = tm_map(corpusPizza, stemDocument)
-corpusPizza[[1]]
-# Create matrix
-dtmPizza = DocumentTermMatrix(corpusPizza)
-dtmPizza
-str(dtmPizza) # Lots of terms...
-# Remove sparse terms (leave about 700  terms or so?)
-dtmSparse = removeSparseTerms(dtmPizza, 0.98)
-dtmSparse
-# Create data frame
-labeledTerms = as.data.frame(as.matrix(dtmSparse))
-rownames(labeledTerms) <- NULL
-head(labeledTerms, n=1)
-# Add in the outcome variable
-table(train$requester_received_pizza)
-labeledTerms$requester_received_pizza <- ifelse(train$requester_received_pizza == "false", 0, 1)
-table(labeledTerms$requester_received_pizza)
-str(labeledTerms)
+CreateCorpus2 <- function(data, threshold=0.99) {
+  library(tm)
+  # Create corpus
+  corpus = Corpus(VectorSource(data))
+  # corpus[[1]]
+  # Pre-process data
+  corpus = tm_map(corpus, tolower)
+  # IMPORTANT NOTE: If you are using the latest version of the tm package, you will need to run the following line before continuing
+  # (it converts corpus to a Plain Text Document). This is a recent change having to do with the tolower function that occurred after
+  # this video was recorded.)
+  corpus = tm_map(corpus, PlainTextDocument)
+  corpus = tm_map(corpus, removePunctuation)
+  corpus = tm_map(corpus, removeWords, stopwords("english"))
+  corpus = tm_map(corpus, stemDocument)
+  # Create matrix
+  dtm = DocumentTermMatrix(corpus)
+  # dtm
+  # str(dtm)
+  # Remove sparse terms
+  dtm = removeSparseTerms(dtm, threshold)
+  # dtm
+  # Create data frame
+  labeledTerms = as.data.frame(as.matrix(dtm))
+  colnames(labeledTerms) <- make.names(colnames(labeledTerms))
+  return(list(labeledTerms, dtm)) # Return a list with 1) the sparse matrix df and 2) the dtm
+}
+
+# TODO: Do a bag-of-words on requester_subreddits_at_request too?
+result <- CreateCorpus2(train$requester_subreddits_at_request, 0.9997)
+corpus <- result[[1]]
+dtm <- result[[2]]
+dtm
+corpus$requester_received_pizza <- as.factor(train$requester_received_pizza)
+
 # Split the data
 library(caTools)
 set.seed(144)
-spl = sample.split(labeledTerms$requester_received_pizza, 0.7)
-train2 = subset(labeledTerms, spl == TRUE)
-test2 = subset(labeledTerms, spl == FALSE)
+spl = sample.split(corpus$requester_received_pizza, 0.7)
+train2 = subset(corpus, spl == TRUE)
+test2 = subset(corpus, spl == FALSE)
 # Build a CART model
 library(rpart)
 library(rpart.plot)
@@ -612,79 +617,12 @@ result
 score <- sum(diag(result)) / sum(result) 
 score
 
-# Create a corpusPizza on the request_text variable, model on train set and predict on test set:
-
 # TODO:
-# -First combine the request_text from text and train into ONE data frame
-# -Then create corpus
-# -Then split the combined corpus into test and train again
-# -Then add outcome var to train set
-
-library(tm)
-corpusPizzaTrain = Corpus(VectorSource(c(train$request_text, test$request_text))) # NOTE: Combined train and test
-corpusPizzaTrain = tm_map(corpusPizzaTrain, tolower)
-corpusPizzaTrain = tm_map(corpusPizzaTrain, PlainTextDocument)
-corpusPizzaTrain = tm_map(corpusPizzaTrain, removePunctuation)
-corpusPizzaTrain = tm_map(corpusPizzaTrain, removeWords, stopwords("english"))
-corpusPizzaTrain = tm_map(corpusPizzaTrain, stemDocument)
-corpusPizzaTrain[[1]]
-# Create matrix
-dtmPizzaTrain = DocumentTermMatrix(corpusPizzaTrain)
-dtmPizzaTrain
-# Remove sparse terms (leave about 700  terms or so? TODO: Tune this and validate on subsets!)
-dtmSparseTrain = removeSparseTerms(dtmPizzaTrain, 0.9) # Was 0.98->0.993, go opposite way??
-dtmSparseTrain
-# Create data frame
-labeledTermsCombined = as.data.frame(as.matrix(dtmSparseTrain))
-dim(labeledTermsCombined)
-rownames(labeledTermsCombined) <- NULL
-head(labeledTermsCombined, n=1)
-# Split the combined corpus into train and test (TODO: Is this split correct????)
-labeledTermsTrain <- labeledTermsCombined[1:nrow(train),]
-labeledTermsTest <- labeledTermsCombined[(nrow(train)+1):nrow(labeledTermsCombined),]
-dim(labeledTermsTrain)
-dim(labeledTermsTest)
-
-# Add in the outcome variable to the train set
-labeledTermsTrain$requester_received_pizza <- ifelse(train$requester_received_pizza == "false", 0, 1)
-table(labeledTermsTrain$requester_received_pizza)
-str(labeledTermsTrain)
-
-# Try a good ol' GLM on this corpus too. Not so good here...
-pizzaGLM2 <- glm(as.factor(requester_received_pizza) ~ ., data=labeledTermsTrain, na.action=na.omit,
-                 family=binomial(link="logit"))
-summary(pizzaGLM2)
-
-# Build a CART model
-library(rpart)
-library(rpart.plot)
-# NOTE: cp parameter seems to be important here!
-pizzaCART2 = rpart(requester_received_pizza ~ ., data=labeledTermsTrain, na.action=na.omit, minbucket=5, cp=0.001)
-prp(pizzaCART2, cex=.6, col="blue", main="Requester received pizza")
-# Make predictions on the train set
-predTrain = predict(pizzaCART2)
-predTrainLog = predict(pizzaGLM2)
-plot(sort(plogis(predGLMTrain)))
-# TODO: Make predictions on the combined train and test set
-predTrainCombined = predict(pizzaCART2, newdata=labeledTermsCombined)
-predTrainLogCombined = predict(pizzaGLM2, newdata=labeledTermsCombined)
-# Make predictions on the test set
-predTest = predict(pizzaCART2, newdata=labeledTermsTest)
-predTestLog = predict(pizzaGLM2, newdata=labeledTermsTest)
-predTrain[1:10]
-predTrainCombined[1:10]
-predTest[1:10]
-#predTrain.prob = predTrain[,2]
-#predTest.prob = predTest[,2]
-# Compute accuracy
-result2 <- table(labeledTermsTrain$requester_received_pizza, predTrain[,2] > 0.5)
-result2
-score2 <- sum(diag(result2)) / sum(result2) 
-score2
-par(mfrow=c(2,1))
-plot(sort(predTrain[,2]), type="l", col="blue", main="Prediction train")
-plot(sort(predTest[,2]), type="l", col="red", main="Prediction test")
-par(mfrow=c(1,1))
+# - First combine the request_text from text and train into ONE data frame
+# - Add <requester_subreddits_at_request too?
+# - Then create corpus
+# - Then split the combined corpus into test and train again
+# - Then add outcome var to train set
 
 # Create submission file
 submission <- data.frame(request_id=test$request_id, requester_received_pizza=predTest[,2])

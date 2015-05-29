@@ -3,8 +3,11 @@
 
 # TODO: Get coords lat/lon data for Europe and U.S.
 # 
-# Data sources:
+# Data sources and code:
+# http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html
 # http://ec.europa.eu/eurostat/web/main/home (Eurostats, EU Statistics Office)
+# https://github.com/pablo14/EU_health/blob/master/eu_maps.R
+# https://github.com/kjhealy/uk-elections
 
 library(scales)
 library(rpart)
@@ -53,6 +56,4 @@ ggplot(US.Map, aes(x = long, y = lat, group = group, fill=1:nrow(US.Map))) + geo
 map("world", "Norway")
 map.cities(country="Norway", capitals=2)
 map("county", col=1:50, fill=T, mar=c(1,1,1,1))
-
-# http://blog.revolutionanalytics.com/2009/11/choropleth-challenge-result.html
 

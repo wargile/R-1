@@ -161,7 +161,7 @@ result[2] / (result[1] + result[2)] # Proportion of arrests being made in 2001
 result <- table(df$Arrest, df$Year)[1:2,7]
 result[2] / (result[1] + result[2]) # Proportion of arrests being made in 2007
 
-# PROBLEM 3.5 - VISUALIZING CRIME TRENDS. Answer: 0.04061 (ERROR!) 550 / (550 + 13542) = 
+# PROBLEM 3.5 - VISUALIZING CRIME TRENDS. Answer: 0.04061 (ERROR!) 550 / (550 + 13542) = 0.03903
 # TODO: Can also use prop.table(...) How?
 result <- table(df$Arrest, df$Year)[1:2,12]
 result[2] / (result[1] + result[2]) # Proportion of arrests being made in 2012

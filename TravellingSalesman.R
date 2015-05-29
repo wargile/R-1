@@ -25,7 +25,7 @@ TravellingSalesman <- function(cities) {
   par(mar=c(6, 4.5, 2.8, .8))
   plot(x, y, pch=21, col="blue", bg="cyan", main="Travelling salesman", cex.axis=.7, cex.lab=.7,
        cex.main=1, xlab="Latitude", ylab="Longitude", cex=2.6, ylim=c(min(y)-0.5, max(y)+0.5),
-       xlim=c(min(x)-0.5, max(x)+0.5))
+       xlim=c(min(x)-0.5, max(x)+0.5), asp=1)
   
   x.current <- x[starting.city]
   y.current <- y[starting.city]

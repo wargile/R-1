@@ -117,18 +117,28 @@ boxplot(train$feat_85 ~ train$target, col="wheat")
 # Count the number of instances where the count variable > 0, per class:
 df <- data.frame()
 for (className in unique(as.character(train$target))) {
+  cat("Checking class", className, "...\n")
   train.subset <- subset(train, target == className)
-  result <- apply(X=train.subset[,2:94], 1, FUN=function(x) length(which(x > 0)))
+  result <- apply(X=train.subset[,2:93], 1, FUN=function(x) length(which(x > 0)))
   new.data <- data.frame(counts=as.integer(result), className=rep(className, length(result)))
   df <- rbind(df, new.data)
 }
+df
 par(mfrow=c(1,2))
 barplot(table(train$target), main="Class distribution", col="wheat", las=2)
 boxplot(counts ~ className, data=df, col="cornflowerblue", las=2, main="Feature counts by class", ylab="Counts")
 proportions <- round(tapply(df$counts, df$className, sum) / sum(df$counts), 2)
 par(mfrow=c(1,1))
 
-result <- apply(X=train[,2:94], 2, FUN=function(x) length(which(x > 0)))
+# TEST: Add the feature count (mean/median?) as a predictor:
+# train$featureCountPerClass <- 0
+# for (className in unique(as.character(train$target))) {
+#   train$featureCountPerClass[train$target == className] <-
+#     sum(df$counts[df$className == className]) / nrow(train[train$target == className, ])
+# }
+
+
+result <- apply(X=train[,2:93], 2, FUN=function(x) length(which(x > 0)))
 barplot(result, col="orange", las=2, main="Feature 1 to 93, feature count > 0")
 hist(result, col="powderblue", main="Feature 1 to 93, feature count > 0")
 
@@ -211,6 +221,13 @@ pred.result
 result <- CreateTrainAndValidationSets(train)
 train.subset <- result[[1]]
 validation.subset <- result[[2]]
+
+library(caTools)
+set.seed(1000)
+split <- sample.split(train$target, SplitRatio=0.7)
+train.subset <- subset(train, split==TRUE)
+validation.subset <- subset(train, split==FALSE)
+
 # --------------------------------------------------------------------------------------------------------------------------
 
 strt <- Sys.time()
@@ -282,12 +299,12 @@ print(Sys.time() - strt)
 # ---------------------------------------------------------------------------------------------------------------------------
 
 # Try a tree with rpart:
-
+library(rpart.plot)
 numFolds <- trainControl(method="cv", number=10)
 cpGrid <- expand.grid(.cp=seq(0.01,0.5,0.01))
 train(as.factor(target) ~ ., data=train.subset, method="rpart", trControl=numFolds, tuneGrid=cpGrid) # Get cp param at end
 cp.value <- 0.01
-fit <- rpart(as.factor(target) ~ ., data=train.subset, cp=cp.value, minbucket=15) # TODO: Try various minbucket!
+fit <- rpart(as.factor(target) ~ ., data=train.subset, cp=cp.value, minbucket=5) # TODO: Try various minbucket!
 summary(fit)
 prp(fit, cex=.7, col="blue")
 pred <- predict(fit, validation.subset, type="class")
@@ -392,6 +409,12 @@ suppressMessages(library(h2o))
 
 train$target <- as.factor(train$target)
 
+library(caTools)
+set.seed(1000)
+split <- sample.split(train$target, SplitRatio=0.7)
+train.subset <- subset(train, split==TRUE)
+validation.subset <- subset(train, split==FALSE)
+
 # TODO: Scale all feat_<n> cols?
 
 #localH2O <- h2o.init(ip="localhost", port=54321, startH2O=T, max_mem_size='4g', nthreads=-1)
@@ -406,9 +429,12 @@ dat_h2o.test <- as.h2o(localH2O, test, key='test')
 # http://learn.h2o.ai/content/hands-on_training/deep_learning.html
 # http://docs.h2o.ai/datascience/deeplearning.html
 # http://0xdata.com/blog/2015/02/deep-learning-performance/
+x.cols <- 1:93
+y.col <- 94
+
 model.dl <- 
-  h2o.deeplearning(x=1:93, # column numbers for predictors
-                   y=94, # column number for outcome variable
+  h2o.deeplearning(x=x.cols, # column numbers for predictors
+                   y=y.col, # column number for outcome variable
                    data=dat_h2o, # data in H2O format
                    classification=T,
                    activation="TanhWithDropout", # or 'TanhWithDrouput'
@@ -420,22 +446,22 @@ model.dl <-
                    l1=1e-5,
                    # l2=1e-5, # TODO: How to set L1 or L2 regularization?
                    hidden=c(50, 50, 50), # three layers of 50 nodes
-                   epochs=100) # max. no. of epochs (try epocs=0.1??)
+                   epochs=10) # max. no. of epochs (try epocs=0.1??)
 
 model.dl <- 
-  h2o.deeplearning(x=1:93, # column numbers for predictors
-                   y=94, # column number for outcome variable
+  h2o.deeplearning(x=x.cols, # column numbers for predictors
+                   y=y.col, # column number for outcome variable
                    data=dat_h2o, # data in H2O format
                    classification=T,
                    activation="RectifierWithDropout", # or 'TanhWithDrouput'
                    #autoencoder=T,
-                   input_dropout_ratio=0.2, # % of inputs dropout
+                   #input_dropout_ratio=0.2, # % of inputs dropout
                    #hidden_dropout_ratios=c(0.5, 0.5, 0.5), # % for nodes dropout
                    balance_classes=F,
                    fast_mode=T,
-                   l1=1e-5,
+                   #l1=1e-5,
                    #l2=1e-5
-                   hidden=c(256, 256, 256), # three layers of 256 nodes
+                   hidden=c(50, 50, 50), # Was: three layers of 256 nodes
                    epochs=10) # max. no. of epochs (try epocs=0.1??)
 # Get model info:
 # http://learn.h2o.ai/content/hands-on_training/deep_learning.html
@@ -448,7 +474,7 @@ best_params$hidden
 best_params$l1
 
 model.gbm <-
-  h2o.gbm(x=1:93, y=94, distribution = "multinomial", data=dat_h2o, key="gbm", n.trees=100, 
+  h2o.gbm(x=x.cols, y=y.col, distribution = "multinomial", data=dat_h2o, key="gbm", n.trees=250, 
           interaction.depth=5, n.minobsinnode=10, shrinkage=0.1, n.bins=20,
           group_split=T, importance=FALSE, nfolds=0, holdout.fraction=0,
           balance.classes=T, max.after.balance.size=5, class.sampling.factors=NULL,
@@ -456,7 +482,7 @@ model.gbm <-
 model.gbm
 
 model.rf <-
-  h2o.randomForest(x=1:93, y=94, data=dat_h2o, key="rf", classification=TRUE, ntree=250, 
+  h2o.randomForest(x=x.cols, y=y.col, data=dat_h2o, key="rf", classification=TRUE, ntree=250, 
                    depth=20, mtries= -1, sample.rate=2/3, nbins=20, seed= -1, 
                    importance=FALSE, score.each.iteration=FALSE, nfolds=0, 
                    holdout.fraction=0, nodesize=1, balance.classes=T, # was F 
@@ -470,12 +496,21 @@ df_h2o_yhat_test.dl <- as.data.frame(h2o_yhat_test.dl)
 
 h2o_yhat_test.gbm <- h2o.predict(model.gbm, dat_h2o.test)
 df_h2o_yhat_test.gbm <- as.data.frame(h2o_yhat_test.gbm)
-# h2o GBM with n.trees=100 gives best result so far: 0.54143
+# h2o GBM with n.trees=250, balance.classes=T gives best result so far: 0.51478
 # df_h2o_yhat_test.gbm[1:2,2:10]
 
 h2o_yhat_test.rf <- h2o.predict(model.rf, dat_h2o.test)
 df_h2o_yhat_test.rf <- as.data.frame(h2o_yhat_test.rf) 
 # df_h2o_yhat_test.rf[1:2,2:10]
+
+# Get accuracy:
+result <- table(validation.subset$target, df_h2o_yhat_test.gbm$predict)
+result
+accuracy <- sum(diag(result)) / sum(result)
+accuracy
+my.title <- paste0("Confusion Matrix (accuracy = ", round(accuracy, 2), ")")
+ConfusionMatrix(data=result, labels=paste0("Class", 1:9), title=my.title)
+
 
 # TODO: Ensemble models (average predictions)? Include Deep Learning model? And/or try all separate?
 

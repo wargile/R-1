@@ -1,5 +1,8 @@
 # Forest Fire Demo - recursion example
 
+SetStandardOptions()
+library(manipulate)
+
 universe <- NULL
 stack.level <- 0
 options(expressions=(50000)) # Make sure nesting level for recursion is deep enough

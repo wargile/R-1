@@ -14,10 +14,11 @@
 # http://beyondvalence.blogspot.com/2014/07/predicting-capital-bikeshare-demand-in_10.html
 # http://www.capitalbikeshare.com/system-data
 # http://brandonharris.io/kaggle-bike-sharing/
+# http://blog.dato.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
 
 # TIPS/EXPERIENCES:
 # Predict Casual and Registered outcome vars instead of Count directly, since they have different patterns.
-# Then combine to get count. (Seems to worsen score...)
+# Then combine to get count.
 # Can timeseries forecasting be used here?
 # Year is important as predictor!
 # ------------------------------------------------------------------------------------------------------------
@@ -77,6 +78,13 @@ sapply(train, class)
 datetime.test <- test$datetime
 save(datetime.test, file=paste0(dataFolder, "test_datetime.rda"))
 
+# Add dummy values to test dataframe (not needed for prediction, but for binding train/test for transform)
+test$casual <- 0
+test$registered <- 0
+test$count <- 0
+
+cdata <- rbind(train, test)
+
 # Normalize/scale temp, atemp, humidity and windspeed
 cdata$temp <- scale(cdata$temp, center=T, scale=T)
 cdata$atemp <- scale(cdata$atemp, center=T, scale=T)
@@ -84,12 +92,7 @@ cdata$humidity <- scale(cdata$humidity, center=T, scale=T)
 cdata$windspeed <- scale(cdata$windspeed, center=T, scale=T)
 
 # Add dummy values to test dataframe (not needed for prediction, but for binding train/test for transform)
-test$casual <- 0
-test$registered <- 0
-test$count <- 0
 
-# Add test and train together before doing transforms
-cdata <- rbind(train, test)
 # Extract hour, weekday, month, and year from datetime
 datetime <- as.POSIXlt(cdata$datetime)
 # hour = datetime$hour
@@ -110,7 +113,7 @@ cdata = cbind(cdata, hour, weekday, month, year)
 head(cdata)
 
 # Split in the corresponding train/test datasets
-train = cdata[0:trainrows, ]
+train = cdata[1:trainrows, ]
 test = cdata[(trainrows + 1):(trainrows + testrows), ]
 head(train)
 head(test)
@@ -358,6 +361,12 @@ rmsle2 <- sqrt((1 / nrow(validation.subset) * sum((log(pred + 1) - log(validatio
 rmsle2 # OK!
 # NEW TEST END with caTools split:
 
+# Try GBM:
+fit.registered <- gbm(registered ~ hour + year + atemp + month + weather + humidity + windspeed + weekday,
+                      data=train.subset, n.trees=150)
+summary(fit.registered)
+# TODO......!
+
 library(caret)
 library(e1071)
 numFolds <- trainControl(method="rf", number=10)
@@ -580,7 +589,6 @@ head(submission)
 
 write.csv(submission, file=paste0(submissionsFolder, "RF_",
                                   format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
-# 2RF's on registered + 2RF's on casual combined gives best result so far: 0.44745
 
 # --------------------------------------------------------------------------------------------------------------------
 
@@ -644,3 +652,124 @@ plsProbs <- predict(plsFit, newdata=testing, type="raw")
 head(plsProbs)
 plot(plsProbs[1:100], type="l")
 confusionMatrix(data=plsClasses, testing$count)
+
+# -----------------------------------------------------------------------------------------------------------------------------
+
+# Deep learning with h2o...
+
+package.install("h2o")
+suppressMessages(library(h2o))
+
+train.subset$registered <- log(1 + train.subset$registered)
+train.subset$casual <- log(1 + train.subset$casual)
+validation.subset$registered <- log(1 + validation.subset$registered)
+validation.subset$casual <- log(1 + validation.subset$casual)
+
+train$registered <- log(1 + train$registered)
+train$casual <- log(1 + train$casual)
+
+# TODO: Scale all feat_<n> cols?
+
+#localH2O <- h2o.init(ip="localhost", port=54321, startH2O=T, max_mem_size='4g', nthreads=-1)
+localH2O <- h2o.init()
+dat_h2o <- as.h2o(localH2O, train.subset, key='train')
+dat_h2o.test <- as.h2o(localH2O, validation.subset, key='test')
+dat_h2o <- as.h2o(localH2O, train, key='train')
+dat_h2o.test <- as.h2o(localH2O, test, key='test')
+
+# TODO: model.dl gives extremely bad predictions! Parameter tuning/replacement?
+# TIPS HERE, maybe NN is good after all (feed-forward NN):
+# http://learn.h2o.ai/content/hands-on_training/deep_learning.html
+# http://docs.h2o.ai/datascience/deeplearning.html
+# http://0xdata.com/blog/2015/02/deep-learning-performance/
+
+names(train)
+x.cols <- c(2:9,13:16)
+y.col <- 10 # 10: casual, 11: registered
+
+# Do casual
+model.gbm.casual <-
+  h2o.gbm(x=x.cols, y=y.col, distribution = "gaussian", data=dat_h2o, key="gbm", n.trees=250, 
+          interaction.depth=5, n.minobsinnode=10, shrinkage=0.1, n.bins=20,
+          group_split=T, importance=FALSE, nfolds=0, holdout.fraction=0,
+          balance.classes=F, max.after.balance.size=5, class.sampling.factors=NULL,
+          grid.parallelism=1)
+model.gbm.casual
+
+model.rf.casual <-
+  h2o.randomForest(x=x.cols, y=y.col, data=dat_h2o, key="rf", classification=F, ntree=250, 
+                   depth=20, mtries= -1, sample.rate=2/3, nbins=20, seed= -1, 
+                   importance=FALSE, score.each.iteration=FALSE, nfolds=0, 
+                   holdout.fraction=0, nodesize=1, balance.classes=F, 
+                   max.after.balance.size=5, class.sampling.factors=NULL, 
+                   doGrpSplit=TRUE, verbose=FALSE, oobee=TRUE, stat.type="ENTROPY", 
+                   type="BigData")
+model.rf.casual
+
+h2o_yhat_test.gbm.casual <- h2o.predict(model.gbm.casual, dat_h2o.test)
+df_h2o_yhat_test.gbm.casual <- as.data.frame(h2o_yhat_test.gbm.casual)
+
+h2o_yhat_test.rf.casual <- h2o.predict(model.rf.casual, dat_h2o.test)
+df_h2o_yhat_test.rf.casual <- as.data.frame(h2o_yhat_test.rf.casual) 
+
+x.cols <- c(2:9,13:16)
+y.col <- 11 # 10: casual, 11: registered
+
+# Do registered
+model.gbm.registered <-
+  h2o.gbm(x=x.cols, y=y.col, distribution = "gaussian", data=dat_h2o, key="gbm", n.trees=250, 
+          interaction.depth=5, n.minobsinnode=10, shrinkage=0.1, n.bins=20,
+          group_split=T, importance=FALSE, nfolds=0, holdout.fraction=0,
+          balance.classes=F, max.after.balance.size=5, class.sampling.factors=NULL,
+          grid.parallelism=1)
+model.gbm.registered
+
+model.rf.registered <-
+  h2o.randomForest(x=x.cols, y=y.col, data=dat_h2o, key="rf", classification=F, ntree=250, 
+                   depth=20, mtries= -1, sample.rate=2/3, nbins=20, seed= -1, 
+                   importance=FALSE, score.each.iteration=FALSE, nfolds=0, 
+                   holdout.fraction=0, nodesize=1, balance.classes=F, 
+                   max.after.balance.size=5, class.sampling.factors=NULL, 
+                   doGrpSplit=TRUE, verbose=FALSE, oobee=TRUE, stat.type="ENTROPY", 
+                   type="BigData")
+model.rf.registered
+
+h2o_yhat_test.gbm.registered <- h2o.predict(model.gbm.registered, dat_h2o.test)
+df_h2o_yhat_test.gbm.registered <- as.data.frame(h2o_yhat_test.gbm.registered)
+
+h2o_yhat_test.rf.registered <- h2o.predict(model.rf.registered, dat_h2o.test)
+df_h2o_yhat_test.rf.registered <- as.data.frame(h2o_yhat_test.rf.registered) 
+
+# Plot results and get RMSLE
+# GBM casual:
+plot(validation.subset$casual[1:50], col="blue", type="o")
+lines(df_h2o_yhat_test.gbm.casual$predict, col="red", type="o")
+MyRMSLE(validation.subset$casual, df_h2o_yhat_test.gbm.casual$predict)
+# RF casual:
+plot(validation.subset$casual[1:50], col="blue", type="o")
+lines(df_h2o_yhat_test.rf.casual$predict, col="red", type="o")
+MyRMSLE(validation.subset$casual, df_h2o_yhat_test.rf.casual$predict)
+# GBM registered:
+plot(validation.subset$registered[1:50], col="blue", type="o")
+lines(df_h2o_yhat_test.gbm.registered$predict, col="red", type="o")
+MyRMSLE(validation.subset$registered, df_h2o_yhat_test.gbm.registered$predict)
+# RF registered:
+plot(validation.subset$registered[1:50], col="blue", type="o")
+lines(df_h2o_yhat_test.rf.registered$predict, col="red", type="o")
+MyRMSLE(validation.subset$registered, df_h2o_yhat_test.rf.registered$predict)
+# GBM combined:
+plot(validation.subset$count[1:50], col="blue", type="o")
+lines(exp(df_h2o_yhat_test.gbm.casual$predict) + exp(df_h2o_yhat_test.gbm.registered$predict), col="red", type="o")
+MyRMSLE(validation.subset$count, exp(df_h2o_yhat_test.gbm.casual$predict) + exp(df_h2o_yhat_test.gbm.registered$predict))
+# RF combined:
+plot(validation.subset$count[1:50], col="blue", type="o")
+lines(exp(df_h2o_yhat_test.rf.casual$predict) + exp(df_h2o_yhat_test.rf.registered$predict), col="red", type="o")
+MyRMSLE(validation.subset$count, exp(df_h2o_yhat_test.rf.casual$predict) + exp(df_h2o_yhat_test.rf.registered$predict))
+
+pred.combined <- exp(df_h2o_yhat_test.gbm.casual$predict) + exp(df_h2o_yhat_test.gbm.registered$predict)
+submission=data.frame(datetime=datetime.test, count=pred.combined) # Better not to round???
+head(submission)
+
+write.csv(submission, file=paste0(submissionsFolder, "h2o_GBM",
+                                  format(Sys.time(), "%Y%m%d_%H%M"), ".csv"), row.names=F, quote=F)
+# h2o GBM's on registered + casual combined gives best result so far: 0.43664

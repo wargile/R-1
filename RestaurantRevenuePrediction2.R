@@ -10,6 +10,13 @@
 # https://en.wikipedia.org/wiki/Mu%C4%9Fla
 # https://kaggle2.blob.core.windows.net/forum-message-attachments/67762/2221/Rfbenchmark.py?sv=2012-02-12&se=2015-03-26T20%3A27%3A52Z&sr=b&sp=r&sig=uq9sg6rb%2B3w0mo6onPyTkkzoQ3tT%2Fq3gIrz7VLLfHuY%3D
 
+# SOLUTIONS:
+# https://www.kaggle.com/c/restaurant-revenue-prediction/forums
+# https://github.com/wacax/TFI/blob/master/TFIRaw.R
+# https://github.com/trcook/TFI
+# https://github.com/rinze/kaggle-restrevpred
+# https://github.com/rohanrao91/Kaggle_TFI
+
 
 library(randomForest)
 # https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fft.html

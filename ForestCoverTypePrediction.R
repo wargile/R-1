@@ -17,6 +17,16 @@
 
 # ------------------------------------------------------------------------------------------------------------
 
+package.install("extraTrees")
+library(extraTrees)
+package.install("Amelia")
+library(Amelia)
+library(e1071)
+library(caTools)
+library(tree)
+library(caret)
+require(gbm)
+
 set.seed(16071962)
 dataFolder <- "C:/coding/Kaggle/ForestCoverTypePrediction/data/"
 codeFolder <- "C:/coding/Kaggle/ForestCoverTypePrediction/code/"
@@ -45,9 +55,6 @@ if (file.exists(paste0(dataFolder, "train.rda")) == F) {
 #})
 #do.call("rbind", train)
 
-package.install("extraTrees")
-library(extraTrees)
-
 head(train)
 head(test)
 dim(train)
@@ -68,8 +75,6 @@ table(train$IsBelowSeaLevel)
 table(test$IsBelowSeaLevel)
 
 # Look at missing values:
-package.install("Amelia")
-library(Amelia)
 par(mfrow=c(1,2))
 missmap(train[1:500, ], main = "Missingness Map Train", col = c("wheat", "cornflowerblue"))
 missmap(test[1:500, ], main = "Missingness Map Test", col = c("wheat", "blue"))
@@ -78,8 +83,7 @@ par(mfrow=c(1,1))
 sum(!complete.cases(train))
 sum(!complete.cases(test))
 
-library(e1071)
-impute(train, what="median")
+mpute(train, what="median")
 impute(test, what="median")
 
 sum(!complete.cases(train))
@@ -119,11 +123,13 @@ FixData <- function(data) {
 train <- FixData(train)
 test <- FixData(test)
 train$Cover_Type <- as.factor(train$Cover_Type)
+
 # Remove null variance cols
 train$Soil_Type7 <- NULL
 train$Soil_Type15 <- NULL
 test$Soil_Type7 <- NULL
 test$Soil_Type15 <- NULL
+
 # Remove Id col
 train$Id <- NULL
 test$Id <- NULL
@@ -160,6 +166,9 @@ barplot(with(CoverType1_2, tapply(Vertical_Distance_To_Hydrology, Cover_Type, me
 barplot(with(CoverType1_2, tapply(Hillshade_9am, Cover_Type, mean)))
 barplot(with(CoverType1_2, tapply(Hillshade_3pm, Cover_Type, mean)))
 barplot(with(CoverType1_2, tapply(Hillshade_Noon, Cover_Type, mean)))
+
+barplot(with(train, tapply(Elevation, Cover_Type, mean)), main="Elevation (mean)", col="powderblue")
+barplot(with(train, tapply(Slope, Cover_Type, mean)), main="Slope (mean)", col="powderblue")
 
 PlotSoilTypeDifference <- function(data, st1, st2) {
   CoverType1 <- subset(data, Cover_Type == st1)
@@ -223,7 +232,6 @@ result <- CreateTrainAndValidationSets(train)
 train.subset <- result$train
 verification.subset <- result$validation
 
-library(caTools)
 set.seed(1000)
 split <- sample.split(train$Cover_Type, SplitRatio=0.7)
 train.subset <- subset(train, split==TRUE)
@@ -291,7 +299,6 @@ table(verification.normalized$cover_Type, predict(nnet.result, verification.norm
 
 # ----------------------------------------------------------------------------------------------------------------
 # Grow a tree...
-library(tree)
 
 cols <- as.integer(which(variance.train < .15))
 cols
@@ -332,7 +339,6 @@ write.csv(submission, file=paste0(submissionsFolder, "LM_benchmark_",
 
 # ---------------------------------------------------------------------------------------------------------------
 # Do GBM
-require(gbm)
 
 # GBM model settings, these can be varied 
 GBM_NTREES = 250
@@ -460,7 +466,6 @@ write.csv(submission, file=paste0(submissionsFolder, "Party_benchmark_",
 
 # --------------------------------------------------------------------------------------------------------
 # Try caret
-library(caret)
 
 # Fix for confusion matrix (other effects too??)
 train$Cover_Type <- as.character(train$Cover_Type)

@@ -35,6 +35,11 @@
 
 # Free Datasets and other stuff:
 # ------------------------------
+# http://mldata.org/
+# http://mran.revolutionanalytics.com/documents/data/
+# http://www.kdnuggets.com/2015/04/awesome-public-datasets-github.html
+# http://www.kdnuggets.com/datasets/index.html
+# http://kdd.ics.uci.edu/summary.data.application.html
 # http://ec.europa.eu/eurostat/web/main/home (Eurostats, EU Statistics Office)
 # http://www.google.com/trends/
 # http://data.brreg.no/oppslag/enhetsregisteret/enheter.xhtml

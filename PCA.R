@@ -1,6 +1,8 @@
 # PCA
 # http://ufldl.stanford.edu/wiki/index.php/PCA
 # http://www.theanalysisfactor.com/covariance-matrices/
+# http://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues?newsletter=1&nlcode=329536%7c673f
+# http://www.cs.otago.ac.nz/cosc453/student_tutorials/principal_components.pdf
 
 # Also look at: PCR (Principal Component Regression) and PLS (Partial Least Squares). See Kuhn.
 

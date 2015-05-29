@@ -69,10 +69,11 @@ data(Wage)
 model1 <- lm(wage ~ age + year + education + jobclass, data=Wage)
 summary(model1)
 # TODO: Turn the xaxis labels vertical!
-plot(Wage$wage ~ Wage$education, cex.axis=.5, las=1, col=c(2,3,4,5,6))
-plot(Wage$wage ~ Wage$jobclass, cex.axis=.7, las=1, col=c(2,3))
+plot(Wage$wage ~ Wage$education, cex.axis=.5, las=1, col=c(2,3,4,5,6), main="Wage by education")
+plot(Wage$wage ~ Wage$jobclass, cex.axis=.7, las=1, col=c(2,3), main="Wage by jobclass")
 
 model2 <- lm(wage ~ age, data=Wage)
+summary(model2)
 plot(wage ~ age, col=Wage$wage, main="Wage by age", data=Wage)
 abline(model2, col="red", lwd=2)
 
@@ -93,6 +94,7 @@ y
 model1 <- lm(y ~ x)
 summary(model1)
 b0 + b1*x # This is model1$fitted
+model1$fitted # ...as we can see here
 
 # We use Maximum Likelihood to estimate the parameters:
 # l(b0,b) = ProductOf((y<i>=1) Prob.x<i>) * ProductOf((y<i>=0) 1 - Prob.x<i>) 
@@ -157,6 +159,7 @@ title("Linear models tend to have low variance")
 
 # 4.3 Multivariate Logistic Regression:
 data(package="ElemStatLearn")
+attach(SAheart) # Where is SAheart??
 head(SAheart)
 pairs(~ sbp + tobacco + ldl + famhist + obesity + alcohol + age,
       data=SAheart, pch=21, bg=c("red", "turquoise")[factor(SAheart$chd)])

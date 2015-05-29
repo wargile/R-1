@@ -33,10 +33,11 @@ access_token_secret = "mMmrynulIXH7QkUJK8AC8IbOa0eCVaYIlX47pB2Co21ZN"
 setup_twitter_oauth(api_key, api_secret, access_token_key, access_token_secret)
 
 tweets1 = searchTwitter('@Apple', n=150)
+tweets1 = searchTwitter('@Potus', n=350) # Barack Obama
+tweets1 = searchTwitter('#flatgate', n=1000, lang="en")
+tweets1 = searchTwitter('#AppleWatch', n=150, lang="en")
 # @PolitiVestfold, @JBVpresse, @vgnett, @reuterspictures, @dhh, @BarackObama
 head(tweets1)
-tweets1 = searchTwitter('#ferrantefever', n=150, lang="en")
-tweets1 = searchTwitter('#AppleWatch', n=150, lang="en")
 head(tweets1)
 tweets1[[1]]$getScreenName()
 tweets1[[1]]$getText()
@@ -45,11 +46,12 @@ tweets1[[1]]$getText()
 df <- twListToDF(tweets1)
 head(df)
 names(df)
-df[!is.na(df$longitude), ]
+df[!is.na(df$longitude) & df$longitude != 0, c(11,15,16)] # screenName, longitude, latitude
 # Get rid of NA:
 df <- df[which(!is.na(df$longitude)), c("latitude", "longitude", "screenName", "created", "text")]
 # Get rid of 0:
 df <- df[which(df$longitude != "0"), c("latitude", "longitude", "screenName", "created", "text")]
+rownames(df)
 
 # http://stackoverflow.com/questions/14334970/convert-latitude-and-longitude-coordinates-to-country-name-in-r?lq=1
 coords2country = function(points)
@@ -68,9 +70,11 @@ coords2country = function(points)
 
 # TODO: UTF-8 encode non-english stuff?
 # http://stackoverflow.com/questions/16574980/problems-with-non-utf-8-and-ascii-characters-twitter-package-in-r
-index <- 3
+index <- 2
 lon <- as.numeric(df$longitude[index])
 lat <- as.numeric(df$latitude[index])
+longitudes <- df$longitude[!is.na(df$longitude)]
+longitudes
 if (nrow(df) > 0) {
   zoom.level <- 8 # Lowest level is 3. Highest is 20
   country <- coords2country(data.frame(lon, lat))

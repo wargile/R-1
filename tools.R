@@ -92,7 +92,8 @@ MyPercentile <- function(data, percentile=50) {
   return(percentile.data)
 }
 
-MyMean <- function(data) {
+MyArithmeticMean <- function(data) {
+  # NOTE: A.k.a. "mean/avg"
   return(sum(data) / length(data))
 }
 
@@ -114,9 +115,9 @@ MyGeometricMean <- function(data) {
   
   for (counter in 1:length(data)) {
     if (data[counter] < 0)
-      temp <- temp * -abs(data[counter])^(1/root) # NOTE handling of neg values!
+      temp <- temp * -abs(data[counter])^(1 / root) # NOTE handling of neg values!
     else
-      temp <- temp * data[counter]^(1/root)
+      temp <- temp * data[counter]^(1 / root)
   }
   
   return(temp)
@@ -130,13 +131,14 @@ MyHarmonicMean <- function(data) {
   root <- length(data)
   
   for (counter in 1:length(data)) {
-    temp <- temp + (1/data[counter])
+    temp <- temp + (1 / data[counter])
   }
   
   return(length(data) / temp)
 }
 
-# TODO: MyWeightedMean
+# TODO: MyWeightedArithmeticMean, etc. - or just add weights as a param to above methods??
+# http://en.wikipedia.org/wiki/Weighted_arithmetic_mean
 
 MyMedian <- function(data, remove.na=TRUE) {
   if (remove.na)
@@ -588,6 +590,10 @@ MyLogit <- function(probability) {
   # plot(MyLogit(seq(0,1,.001)), col="blue")
 }
 
+MyInverseLogit <- function(logit) {
+  1 / (1 + exp(-logit)) # Inverse logit transform
+}
+
 MyOdds <- function(probability) {
   exp(MyLogit(probability))  
 }
@@ -927,7 +933,7 @@ CosineSimilarity <- function(x, y) {
 CosineSimilarity2 <- function(x, y) {
   if (class(x) == "character") {
     # Fix string vectors
-    result <- ConvertStringsToIntegerVectors(x, y)
+    result <- ConvertStringsToIntegerVectors1(x, y)
     x <- result$x
     y <- result$y
   }
@@ -1013,10 +1019,11 @@ ConfusionMatrix <- function(data, labels=NA, xlab=NA, ylab=NA, title="Confusion 
   plot + geom_tile(aes(x=Var1, y=Var2, fill=Freq), data=confusion, color="black", size=0.1) + 
     labs(x=ifelse(is.na(xlab), "Observed", xlab), y=ifelse(is.na(ylab), "Predicted", ylab)) + ggtitle(title) +
     theme(plot.title=element_text(size=18, color="black")) +
-    geom_text(aes(x=Var1, y=Var2, label=sprintf("%.1d", Freq)), data=confusion, size=5, colour="black") +
+    geom_text(aes(x=Var1, y=Var2, label=sprintf("%.1d", Freq)), data=confusion, size=4, colour="black") +
     scale_fill_gradient(low="white", high="green", name="Counts") +
-    theme(axis.text=element_text(colour="black", size=14), 
-          axis.title=element_text(face="bold", colour="black", size=15),
+    theme(axis.text=element_text(colour="black", size=11), 
+          axis.title=element_text(face="bold", colour="black", size=14),
+          axis.text.x=element_text(angle = 90, hjust = 1),
           legend.text=element_text(size=12),
           legend.title=element_text(size=12))
 }
@@ -1089,7 +1096,8 @@ CorrelationPlot <- function(data.in, threshold=.5) {
   fontsize <- 8/size
   if (fontsize < .5) fontsize <- .5
   
-  image(x=seq(size), y=seq(size), z=abs(COR), xlab="", ylab="",
+  # Red color for highest cor, white for lowest: Do z=1-abs(COR) below, otherwise z=abs(COR)
+  image(x=seq(size), y=seq(size), z=1-abs(COR), xlab="", ylab="",
         cex.axis=.6, cex.lab=.7, cex.main=.8,
         main=paste0("Correlation Matrix for ", deparse(substitute(data.in))), xaxt="n", yaxt="n")
   axis(side=1, at=seq(1, size), labels=the.labels, las=2, cex.axis=.6)
@@ -1637,4 +1645,12 @@ PlotROC <- function(y, pred, title="ROCR plot") {
   return (performance(predROCR, "auc")@y.values)
   #sn <- slotNames(predROCR)
   #sapply(sn, function(x) length(slot(predROCR, x)))
+}
+
+GetOrdinalVariableRank <- function(data) {
+  return (sapply(1:length(data), function(x) (x - 1) / (length(data) - 1)))
+  # Example:
+  # students <- c("freshman","sophomore","junior","senior")
+  # rank <- GetOrdinalVariableRank(students)
+  # Find distance: abs(rank[3] - rank[4])
 }
