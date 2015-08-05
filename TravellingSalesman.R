@@ -8,10 +8,16 @@
 # TODO: Optimize by doing permutations of <n> closest nodes and checking all variants before progressing?
 #       Can use combinat::permn(vector.size)
 
+library(manipulate)
+library(grid) # For unit() used in arrows(....)
+
+par(mar=c(5.5, 4, 2, .7))
+
 TravellingSalesman <- function(cities) {
   op <- par()
   n <- cities # Cities to visit
-  starting.city <- sample(1:n, 1)
+  starting.city <- base::sample(1:n, 1)
+  # NOTE: explicit base::sample declaration (sample is also used in timeDate library)
   city.status <- rep(0, n)
   distances <- numeric(0)
   city.visited <- 1
@@ -19,12 +25,12 @@ TravellingSalesman <- function(cities) {
   cities.visited <- integer(0)
 
   
-  x <- sample(1:n, n, replace=F) + rnorm(n)
-  y <- sample(1:n, n, replace=F) + rnorm(n)
+  x <- base::sample(1:n, n, replace=F) + rnorm(n)
+  y <- base::sample(1:n, n, replace=F) + rnorm(n)
   # Plot 'cities' on lat/lon 'map'
-  par(mar=c(6, 4.5, 2.8, .8))
+  #par(mar=c(6, 4.5, 2.8, .8))
   plot(x, y, pch=21, col="blue", bg="cyan", main="Travelling salesman", cex.axis=.7, cex.lab=.7,
-       cex.main=1, xlab="Latitude", ylab="Longitude", cex=2.6, ylim=c(min(y)-0.5, max(y)+0.5),
+       cex.main=1, ylab="Latitude", xlab="Longitude", cex=2.6, ylim=c(min(y)-0.5, max(y)+0.5),
        xlim=c(min(x)-0.5, max(x)+0.5), asp=1)
   
   x.current <- x[starting.city]

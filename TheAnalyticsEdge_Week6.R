@@ -87,8 +87,8 @@ length(distances)
 clusterMovies <- hclust(distances, method="ward.D")
 # plot(clusterMovies) # Makes R crash...
 clusterGroups <- cutree(clusterMovies, k=10) # Cut the tree into 10 groups of data
-barplot(tapply(movies$Action, clusterGroups, mean), main="Mean Action by clusterGroup")
-barplot(tapply(movies$Romance, clusterGroups, mean), main="Mean Romance by clusterGroup")
+barplot(tapply(corpus$accessori, clusterGroups, mean), main="Mean 'accesori by clusterGroup")
+barplot(tapply(corpus$cotton, clusterGroups, mean), main="Mean 'cotton' by clusterGroup")
 # Above gives the percentage of movies belonging in the Action and Romance clusters respectively
 df <- do.call(rbind, lapply(movies[2:20], function(x) tapply(x, clusterGroups, mean)))
 df <- round(df, 2)

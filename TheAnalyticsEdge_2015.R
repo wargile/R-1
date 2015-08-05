@@ -1,10 +1,4 @@
-# Search Result Relevance
-# https://www.kaggle.com/c/crowdflower-search-relevance
-# Deadline: 06.07.2015
-
-# The evaluation metric for this competition is quadratic weighted kappa, which measures the agreement between two ratings.
-# Submission format: You must submit a csv file with the product id and a predicted search relevance for each search record.
-# More info: https://www.kaggle.com/c/crowdflower-search-relevance/details/evaluation
+# The analytics Edge spring 2015
 
 # Outcome/dependent variable: Popular, which labels if an article had 25 or more comments in its online comment section
 #   (equal to 1 if it did, and 0 if it did not)
@@ -21,7 +15,7 @@
 
 # Things to try:
 # - Cluster-then-predict on all text predictors, any effect here?
-# - Do local repeated CV? trainControl(method="cv", number=10). find best mtry for RF woth caret train?
+# - Do local repeated CV? trainControl(method="cv", number=10). find best mtry for RF with caret train?
 # - n-grams?
 # - Ensembling: http://www.r-bloggers.com/an-intro-to-ensemble-learning-in-r/
 # - Split bag-of-words and other predictors in separate models and combine/average
@@ -41,7 +35,7 @@
 # http://www.kaggle.com/c/15-071x-the-analytics-edge-competition-spring-2015/forums/t/14030/pls-share-your-code/76962#post76962
 # https://kaggle2.blob.core.windows.net/forum-message-attachments/76962/2441/compScriptFinal.R?sv=2012-02-12&se=2015-05-08T08%3A30%3A24Z&sr=b&sp=r&sig=rCU%2B9xKfVpk0LClw857f5rTRTBU9PCVWujokoujAWxk%3D
 # http://nbviewer.ipython.org/gist/mattsco/8dddf256244fb7d47d47
-
+# https://kaggle2.blob.core.windows.net/forum-message-attachments/76962/2441/compScriptFinal.R?sv=2012-02-12&se=2015-07-22T18%3A38%3A01Z&sr=b&sp=r&sig=kGFpxp0abJAstEkAjcWLaxM1HCScFadLSkt%2FzJFbScM%3D
 
 set.seed(1000)
 SetStandardOptions()

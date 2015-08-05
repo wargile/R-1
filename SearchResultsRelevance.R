@@ -21,8 +21,12 @@
 # http://blog.josephwilk.net/projects/latent-semantic-analysis-in-python.html
 # LSA: http://meefen.github.io/blog/2013/03/11/analyze-text-similarity-in-r-latent-semantic-analysis-and-multidimentional-scaling/
 # http://cran.r-project.org/web/packages/lsa/index.html
+# Use Latent Dirichlet Allocation (LDA; (Blei et al., 2003)) ?
+# Use BeautifulSoup (Python only) to remove HTML tags before doiong NLP. R equivalent:
+# http://www.r-bloggers.com/migrating-table-oriented-web-scraping-code-to-rvest-wxpath-css-selector-examples/
+# I added these features (number of words, etc.) after tf-idf and SVD (just like Abhisekh's code). Then do scaling before feeding to the SVM.
 
-# Use Latent Dirichlet allocation?
+# TODO: Impute product_description with product_title if not present
 
 set.seed(1000)
 
@@ -51,6 +55,7 @@ SplitAndCountWords <- function(text) {
 }
 
 ## NOT_MINE: Function to compute matching words (see NOT_MINE folder)
+## TODO: Also try with or add product description??
 GetNumberOfMatchingWords <- function(terms){
   term1 <- terms[1]
   term2 <- terms[2]
@@ -187,6 +192,34 @@ length(unique(test$query))
 length(setdiff(unique(train$query), unique(test$query)))
 
 y = train$median_relevance
+
+# ----------------------------------------------------------------------------------------------------------------------------
+# TEST Cluster the description Corpus
+
+result <- CreateCorpus2(train$product_description, 0.97)
+corpus <- result[[1]]
+dtm <- result[[2]]
+dtm
+n <- 5000
+distances <- dist(corpus[1:n, ], method="euclidean")
+class(distances) # class 'dist'
+attr(distances, "Labels")
+attr(distances, "Size")
+length(distances)
+# Create clusters on the 'distances' class:
+cluster.product.description <- hclust(distances, method="ward.D")
+# plot(clusterMovies) # Makes R crash...
+clusterGroups <- cutree(cluster.product.description, k=10) # Cut the tree into 10 groups of data
+par(mfrow=c(2,1))
+barplot(tapply(corpus$wash[1:n], clusterGroups, mean), main="Mean 'wash' term by clusterGroup", col="wheat")
+barplot(tapply(corpus$water[1:n], clusterGroups, mean), main="Mean 'water' term by clusterGroup", col="wheat")
+par(mfrow=c(1,1))
+# Above gives the percentage of movies belonging in the Action and Romance clusters respectively
+df <- do.call(rbind, lapply(corpus[1:n,], function(x) tapply(x, clusterGroups, mean)))
+df <- round(df, 2)
+colnames(df) <- paste0("C", 1:10)
+df[rownames(df) %in% c("wash","water"), ]
+df[rownames(df) %in% c("stylish","dress","wear"), ]
 
 # ----------------------------------------------------------------------------------------------------------------------------
 # TEST: Get cosine distance between search term and product description:

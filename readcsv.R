@@ -35,6 +35,7 @@
 
 # Free Datasets and other stuff:
 # ------------------------------
+# http://data.norge.no/
 # http://mldata.org/
 # http://mran.revolutionanalytics.com/documents/data/
 # http://www.kdnuggets.com/2015/04/awesome-public-datasets-github.html
@@ -334,6 +335,7 @@ GraphStocksData <- function(ticker="EVRY", ticker.company="EVRY", getweek=TRUE, 
 
 # Get stocks data, calls GRaphStockData() ----
 GetStocksData <- function(getweek=TRUE, numweeks=1) {
+  library(manipulate)
   #df <- read.csv("c:/coding/R/testdata/NorskeTickers.csv", header=T, sep=";", stringsAsFactor=F)
   df <- read.csv("http://norma.netfonds.no/kurs.php?layout=horizontal&exchange=OSE&sec_types=&ticks=&table=tab&sort=alphabetic",
                      header=T, sep="\t", stringsAsFactor=F)
@@ -805,16 +807,16 @@ GetHYGStarsDatabase <- function() {
   #grid (NULL, NULL, lty=3, col = "cornsilk3")
   abline(v=seq(1,length(data$ProperName)), lty=3, col="cornsilk2")
   points(data$Mag, col=round(abs(data$ColorIndex * 3) + 2), pch=19, cex=(data$Mag * -1) + 2.4)
-  par(mar=oldmar)
-  par(bg=oldbg)
   
   # Using sqldf:
   # result <- sqldf("SELECT * FROM hygstars WHERE BayerFlamsteed LIKE '%Ori%'")
   result <- sqldf('SELECT Mag, BayerFlamsteed, ProperName FROM hygstars WHERE BayerFlamsteed LIKE \'%Ori%\'')
 
   starnames <- paste(result$BayerFlamsteed, result$ProperName)
-  plot(result$Mag, xaxt="n", xlab="", pch=19, col="blue", main="Stars in Orion", cex.axis=.6)
+  plot(result$Mag, xaxt="n", xlab="", pch=19, col="blue", main="Stars in Orion", cex=result$Mag/5)
   axis(1, at=1:length(result$Mag), labels=starnames, las=2, cex.axis=.6)
+  par(mar=oldmar)
+  par(bg=oldbg)
 }
 
 UsingGoogleVisCharts <- function() {

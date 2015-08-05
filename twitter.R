@@ -36,7 +36,7 @@ tweets1 = searchTwitter('@Apple', n=150)
 tweets1 = searchTwitter('@Potus', n=350) # Barack Obama
 tweets1 = searchTwitter('#flatgate', n=1000, lang="en")
 tweets1 = searchTwitter('#AppleWatch', n=150, lang="en")
-# @PolitiVestfold, @JBVpresse, @vgnett, @reuterspictures, @dhh, @BarackObama
+# @PolitiVestfold, @JBVpresse, @vgnett, @reuterspictures, @dhh
 head(tweets1)
 head(tweets1)
 tweets1[[1]]$getScreenName()

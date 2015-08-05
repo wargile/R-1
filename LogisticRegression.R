@@ -1,5 +1,5 @@
 # Understanding logistic regression:
-# ------------------.---------------
+# ----------------------------------
 
 # TODO: Understand log-likelihood...
 # TODO: Understand odds ratios...
@@ -83,3 +83,60 @@ plot(sort(logit), col="blue", type="l", main=("Logit function"), xlab="Predictor
 abline(h=0, col="red")
 abline(h=1, col="red")
 par(mfrow=c(1,1))
+
+
+# Logistic regression and logloss
+n <- 250
+y <- sample(0:1, n, replace=T)
+x1 <- (y + rnorm(n)) + 1
+x2 <- (y - rnorm(n)) * 1
+
+fit <- glm(y ~ x1 + x2, family="binomial")
+summary(fit)
+
+x <- matrix(c(rep(1, n), x1, x2), ncol=3, byrow=F)
+# NOTE: IMPORTANT: Need to add a column of 1's to X matrix IFF intercept is included in weights/coeffs!
+
+par(mfrow=c(2,1))
+z <- y * (as.numeric(fit$coefficients %*% t(x))) # TODO: How do we get z = fit$fitted.values here??
+plot(z, type="o", col="blue", main="z")
+logloss <- log(1 + exp(1)^(-z))
+# Or just:
+logloss <- log(1 + exp(-z))
+plot(logloss, type="o", col="red", main="logloss")
+par(mfrow=c(1,1))
+
+average_logloss <- sum(logloss) / n
+average_logloss
+# Same as:
+sum(log(1+exp(-z)))/n
+
+# Sigmoid function
+sigmoid <- 1 / (1 + exp(-z))
+plot(sigmoid, pch=16, col="blue")
+plot(sort(sigmoid), pch=16, col="blue")
+
+sigmoid <- function(t) {
+  return (1 + exp(-t))^(-1)
+}
+
+plot(sigmoid(as.numeric(fit$coefficients %*% t(x))))
+
+plot(sign(as.numeric(fit$coefficients %*% t(x))))
+
+# Calculate logloss:
+z <- fit$fitted.values
+epsilon <- 10e-12 # log(0) is undefined so need to add a small value to it, likewise subtract if p == 1
+logloss <- numeric()
+for (counter in 1:length(y)) {
+  if (z[counter] == 1)
+    z[counter] <- z[counter] - epsilon
+  if (z[counter] == 0)
+    z[counter] <- z[counter] + epsilon
+  
+  if (y[counter] == 0)
+    logloss[counter] <- -log(1 - z[counter])
+  else
+    logloss[counter] <- -log(z[counter])
+}
+sum(logloss) / n

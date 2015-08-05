@@ -8,6 +8,8 @@
 
 # TODO: Find some good data to do PCA on. Images or other stuff from TheAnalyticsEdge? 
 
+# NOTE: Features should be scaled before doing PCA (feature<i> - mean(features))
+
 n <- 50
 x1 <- rnorm(1:n, sd=2, mean=0)
 x2 <- x1 + rnorm(1:n, sd=2, mean=0)

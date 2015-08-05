@@ -9,7 +9,7 @@ df
 sum(df$p)
 
 bp <- ggplot(data=df, aes(factor(x=fridges.sold), y=days.sold, fill=days.sold)) + geom_histogram(stat="identity")
-bp <- bp + xlab("Antall kjoleskap solgt i lopet av en dag") + ylab("Antall dager") +
+bp <- bp + xlab("Antall kjøleskap solgt i løpet av en dag") + ylab("Antall dager") +
   ggtitle("Statistikk Kort og Godt") +
   theme(plot.title=element_text(size = 18, colour="steelblue4", face="bold.italic")) +
   scale_x_discrete(breaks=MyQuantile(fridges.sold), labels=c("min", "lower", "median", "upper", "max"))
@@ -94,7 +94,6 @@ MyDPoisson <- function(data) {
 
   #cat(rev(sort(b)))
   #barplot(rev(sort(b)), col=heat.colors(length(b)))
-
 }
 
 # Create a normal distribution bell curve

@@ -10,6 +10,7 @@ CreateMovingAverage <- function(data, window) {
   return (sapply(1:length(data), function(x) ifelse(x > window.start, mean(data[(x-window.start):(x+window.end)]), NA)))
 }
 
+par(mfrow=c(1,1))
 a <- rnorm(50)
 smooth1 <- CreateMovingAverage(a, 3)
 smooth2 <- CreateMovingAverage(smooth1, 5)
@@ -19,7 +20,7 @@ lines(smooth2, col="green3", lwd=2)
 legend("topright", legend=c("Data","Smoother1","Smoother2"), col=c("blue","red","green3"), lwd=2, cex=.7)
 
 
-# Get first derivate...???
+# Get first derivative...???
 a1 <- abs(rnorm(100))
 a2 <- abs(rnorm(100)) + a1
 a3 <- abs(rnorm(100)) + a2

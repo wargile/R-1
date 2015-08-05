@@ -21,6 +21,10 @@
 # Then combine to get count.
 # Can timeseries forecasting be used here?
 # Year is important as predictor!
+
+# CODE:
+# https://github.com/logicalguess/kaggle-bike-sharing-demand/blob/master/code/main.ipynb (9th place)
+
 # ------------------------------------------------------------------------------------------------------------
 
 set.seed(1000)

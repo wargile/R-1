@@ -1,9 +1,7 @@
 # tools.R -- Various stuff, just learning R...
-# Copyright (C) Terje B 2013
+# Copyright (C) Terje B 2013-2015
 #
 # http://en.wikipedia.org/wiki/Portal:Statistics
-#
-# Remove everything except something: rm(list=setdiff(ls(), "stars"))
 
 # Matches quantiles type 2,5, others?
 MyQuantile <- function(data, return.names=TRUE) {
@@ -104,7 +102,7 @@ MyGeometricMean <- function(data) {
   # TEST:
   # x <- rnorm(100)
   # hist(x, col="orange", cex.main=1, cex.lab=.8, cex.axis=.8, main="Mean, geometric mean and median")
-  # abline(v=MyMean(x), col="red", lwd=2)
+  # abline(v=MyArithmeticMean(x), col="red", lwd=2)
   # abline(v=MyGeometricMean(x), col="green4", lwd=2)
   # abline(v=MyMedian(x), col="blue", lwd=2)
   # legend("topright", legend=c("Mean","Geometric mean","Median"), col=c("Red","Green4","Blue"),
@@ -173,6 +171,8 @@ MyVariance <- function(data, sample.based=TRUE) {
 }
 
 MyStddev <- function(data, sample.based=TRUE) {
+  if (is.matrix(data))
+    return(NULL)
   # This gives sample based stddev (n-1 elements)
   # (n-1: Used for inferential statistics. n: used for descriptive statistics)
   # The lesser the stddev is, the closer the values are to the mean (that is, values are more consistent)
@@ -180,10 +180,12 @@ MyStddev <- function(data, sample.based=TRUE) {
 }
 
 MyStdScore <- function(value, data) {
+  if (is.matrix(data))
+    return(NULL)
   if (length(data) < 2)
     return(NA)
   
-  return((value - MyMean(data)) / MyStddev(data, sample.based=FALSE))
+  return((value - MyArithmeticMean(data)) / MyStddev(data, sample.based=FALSE))
 }
 
 MyTScore <- function(data, population.mean=0) {
@@ -191,7 +193,7 @@ MyTScore <- function(data, population.mean=0) {
   # t = [ x - u ] / [ s / sqrt( n ) ]
   # where x is the sample mean, u is the population mean,
   # s is the standard deviation of the sample, n is the sample size, and t is the t score.
-  x <- MyMean(data)
+  x <- MyArithmeticMean(data)
   s <- MyStddev(data)
   n <- length(data)
   u <- population.mean
@@ -203,7 +205,7 @@ MyTScore <- function(data, population.mean=0) {
 MySkewness <- function(data, type=2) {
   my.temp <- 0
   my.length <- length(data)
-  my.mean <- MyMean(data)
+  my.mean <- MyArithmeticMean(data)
   
   if (type == 2) {
     for (counter in 1:length(data))
@@ -226,12 +228,12 @@ MyMode <- function(data, round.digits=10) {
 MyZScore <- function(data) {
   # TEST IT: hist(MyZScore(rnorm(10000)), col="orange")
   
-  (data - MyMean(data)) / MyStddev(data, sample.based=F)
+  (data - MyArithmeticMean(data)) / MyStddev(data, sample.based=F)
 }
 
 MySumOfCrossProducts <- function(x, y) {
   # Sum of CrossProducts (SP) = (X - Mx) x (Y - My)
-  sum((x - MyMean(x)) * (y - MyMean(y)))  
+  sum((x - MyArithmeticMean(x)) * (y - MyArithmeticMean(y)))  
 }
 
 MyMultipleRSquared <- function(x, y) {
@@ -255,7 +257,7 @@ MyMultipleRSquared <- function(x, y) {
   resid.Y <- y - estimated.Y # This is model$resid
   my.rmse <- sqrt(sum((y - estimated.Y)^2) / n) # This is rmse(y, model$fitted)
   
-  sum((estimated.Y - MyMean(y))^2) / sum((y - MyMean(y))^2) 
+  sum((estimated.Y - MyArithmeticMean(y))^2) / sum((y - MyArithmeticMean(y))^2) 
 }
 
 MyResidualStandardError <- function(model, y, parameters) {
@@ -306,9 +308,27 @@ MyMSE <- function(actual, predicted) {
   return(sum((actual - predicted)^2) * (1 / length(actual)))
 }
 
+MyMPE <- function(actual, predicted) {
+  # http://en.wikipedia.org/wiki/Mean_percent_error
+  # Mean Percent Error
+  return(sum((actual - predicted) / actual) * (1 / length(actual)))
+}
+
+MyMAPE <- function(actual, predicted) {
+  # http://en.wikipedia.org/wiki/Mean_absolute_percentage_error
+  # Mean Absolute Percentage Error
+  return(sum(abs((actual - predicted) / actual)) * (1 / length(actual)))
+}
+
+MyME <- function(actual, predicted) {
+  # http://en.wikipedia.org/wiki/Mean_error
+  # Mean Error/Deviation
+  return(sum(actual - predicted) * (1 / length(actual)))
+}
+
 MyMAE <- function(actual, predicted) {
   # http://en.wikipedia.org/wiki/Mean_absolute_error
-  # Mean Absolute Error
+  # Mean Absolute Error/Deviation
   return(sum(abs(actual - predicted)) * (1 / length(actual)))
 }
 
@@ -316,6 +336,23 @@ MyRMSLE <- function(actual, predicted) {
   # Root mean squared log error (Test: rmsle(actual, predicted) {Metrics})
   # See also: SLE, MSLE
   return(sqrt((1 / length(actual)) * sum((log(actual + 1) - log(predicted + 1))^2)))
+}
+
+MyLogLoss <- function(probs, y) {
+  # TEST:
+  # probs <- runif(100)
+  # y <- sample(c(0, 1), 100, replace=T)
+  # MyLogLoss(probs, y)
+  
+  epsilon <- 10e-12
+  for (counter in 1:length(probs)) {
+    if (probs[counter] == 1)
+      probs[counter] <- probs[counter] - epsilon
+    if (probs[counter] == 0)
+      probs[counter] <- probs[counter] + epsilon
+  }
+  # log(0) is undefined, so when p is 0 we need to add a small value (epsilon) to it, likewise subtract if p == 1
+  logloss <- ifelse(y == 1, -log(probs), -log(1 - probs))
 }
 
 # NOTE: Not correct for multiple regression!
@@ -342,11 +379,16 @@ MyAdjustedRegressionCoefficient <- function(r2, n, k) {
   return(1 - (1 - r2) * (n - 1) / (n - k - 1))
 }
 
-MyCovariance <- function(x, y, sample.based=T) {
+# NOTE: The result here is covariance for one or two VECTORS!
+# TODO: Do cov for just one vector + cov for one or two matrices!
+MyCovariance <- function(x, y=NULL, sample.based=T) {
+  if (is.null(y))
+    y <- x 
+  # TODO: For matrix, need to do x.outer(t(y))
   if (sample.based == F)
-    sum((x - MyMean(x)) * (y - MyMean(y))) / length(x)
+    sum((x - MyArithmeticMean(x)) * (y - MyArithmeticMean(y))) / length(x)
   else
-    sum((x - MyMean(x)) * (y - MyMean(y))) / (length(x) - 1)
+    sum((x - MyArithmeticMean(x)) * (y - MyArithmeticMean(y))) / (length(x) - 1)
 }
 
 MyCorrelationCoefficient <- function(x, y) {
@@ -634,6 +676,11 @@ MyPredictions <- function(x, y, data) {
   #(2) Specificity: P(Y^i=0|Yi=0) - the proportion of '0's that are correctly identified as so
   
   #(3) (Correct) Classification Rate: P(Yi=Y^i) - the proportion of predictions that were correct.
+}
+
+# TODO....
+MyNormalDistribution <- function(probs) {
+  exp(1)^(-((probs-MyArithmeticMean(probs))^2) / ((2 * MyStddev(probs))^2)) / (MyStddev(probs)*sqrt(2*pi))
 }
 
 # TODO: Other norms
@@ -1364,11 +1411,14 @@ Binarize <- function(data, threshold=0.5) {
 }
 
 MyEuclideanDistance <- function(p1, p2) {
-  return (sqrt((p1[1] - p2[1])^2 + (p1[2] - p2[2])^2))
+  # NOTE: This is the same as the Pythagorean thoerem: c^2 = a^2 + b^2. So distance c = sqrt(c^2)
+  # return (sqrt((p1[1] - p2[1])^2 + (p1[2] - p2[2])^2))
+  return (sqrt(sum((p1 - p2)^2))) # NOTE: Changed to handle more than two dimensions
 }
 
 MyManhattanDistance <- function(p1, p2) {
-  return (abs(p1[1] - p2[1]) + abs(p1[2] - p2[2]))
+  #return (abs(p1[1] - p2[1]) + abs(p1[2] - p2[2]))
+  return (sum(abs(p1 - p2))) # NOTE: Changed to handle more than two dimensions
 }
 
 # Sigmoid function
@@ -1629,20 +1679,21 @@ CalibrateRF <- function(data, r=.94) {
   return (t(result))
 }
 
-PlotROC <- function(y, pred, title="ROCR plot") {
+PlotROC <- function(pred, y, title="ROCR plot") {
   # Show ROCR colorized plot
   library(ROCR)
   par(mar=c(3,3,2,2))
   predROCR = prediction(pred, y)
+  score <- as.numeric(performance(predROCR, "auc")@y.values)
   perfROCR = performance(predROCR, "tpr", "fpr")
-  plot(perfROCR, colorize=TRUE, main=title, lwd=3)
+  plot(perfROCR, colorize=TRUE, main=paste0(title, " (Score = ", round(score, 4), ")"), lwd=3)
   lines(c(0,1),c(0,1), col="gray", lty=2)
   # TODO: Add text
   # http://www.r-bloggers.com/a-small-introduction-to-the-rocr-package/
   # NOTE: At a cutoff of 0.6-0.8, we predict a good TP rate, while at the same time having a low FP rate.
   par(mar=c(3,3,2,1))
   # Compute and return AUC
-  return (performance(predROCR, "auc")@y.values)
+  return (score)
   #sn <- slotNames(predROCR)
   #sapply(sn, function(x) length(slot(predROCR, x)))
 }
@@ -1654,3 +1705,49 @@ GetOrdinalVariableRank <- function(data) {
   # rank <- GetOrdinalVariableRank(students)
   # Find distance: abs(rank[3] - rank[4])
 }
+
+# TIP: In linear regression, you can achieve a better RMSE by using quadratic features
+# (like python's itertools.product([1,2,3], repeat=2)
+# or itertools.permutations([1,2,3])):
+GetQuadraticFeatures <- function(data) {
+  my.array = numeric(0)
+  counter <- 1
+  pos <- 1
+  size <- length(data)
+  for (counter in 1:size) {
+    for (inner_counter in 1:size) {
+      my.array[pos] <- data[counter] * data[inner_counter]
+      pos <- pos + 1
+    }
+  }
+  return (my.array)
+}
+
+# TEST:
+# n <- sample(8, 1) + 1
+# poly.x <- sample(10, n)
+# poly.y <- sample(10, n)
+# cat("The area of the polygon is: ", GetPolygonArea(poly.x, poly.y))
+# plot(min(poly.y):max(poly.y), type = "n", xlim=c(min(poly.x), max(poly.x)), ylim=c(min(poly.y), max(poly.y)))
+# polygon(poly.x, poly.y, col="blue")
+GetPolygonArea <- function(poly.x, poly.y) {
+  mpoly <- matrix(c(poly.x, poly.y), length(poly.x), 2)
+  mpoly
+  
+  a <- numeric(1)
+  b <- numeric(1)
+  i <- 0
+  
+  for (i in 1:(length(poly.x)-1)) {
+    a[1] <- a[1] + (mpoly[i, 1] * mpoly[(i+1), 2])
+    cat("a:", a[1], "\n")
+  }
+  
+  
+  for (i in 1:(length(poly.y)-1)) {
+    b[1] <- b[1] + (mpoly[i, 2] * mpoly[(i+1), 1])
+  }
+  
+  return (abs(a - b) / 2)
+}
+

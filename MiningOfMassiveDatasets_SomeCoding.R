@@ -1194,6 +1194,7 @@ for (counter in 1:ncol(ratings.matrix))
   if ((ratings.matrix[row.A,counter] > 0 | ratings.matrix[row.B,counter] > 0) == T)
     union.AB <- union.AB + 1
 sim.AB <- intersect.AB / union.AB
+sim.AB
 
 # Option 2: Try Cosine Similarity (sim(A,B) = cos(r<A>,r<B>)):
 # We see that sim(A,B) > sim(A,C), but not by much. Problem: Treats missing ratings (0) as negative ratings, but we
@@ -1267,8 +1268,8 @@ round(rating1_5, 1) # 2.6 - correct!
 # than users; they usually belong to fewer categories, whereas users often have very varied tastes
 
 # - TODO: Latent factor based
-
-
+# http://www2.research.att.com/~volinsky/papers/ieeecomputer.pdf
+# http://www.ideal.ece.utexas.edu/seminar/LatentFactorModels.pdf
 
 # - TODO: UV decomposition
 M <- matrix(c(5,2,4,4,3,3,1,2,4,1,2,0,3,1,4,2,5,4,3,5,4,4,5,4,0), ncol=5, byrow=T)

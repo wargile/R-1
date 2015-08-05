@@ -3,6 +3,7 @@
 # http://www.stat.pitt.edu/stoffer/tsa3/ (Code for Book: Time Series analysis and its Applications)
 # http://www.r-bloggers.com/forecasting-weekly-data/
 # http://www.r-bloggers.com/time-series-analysis-and-mining-with-r/ (see also http://www.rdatamining.com/)
+# http://www.r-bloggers.com/r-financial-time-series-tips-everyone-should-know-about/
 
 package.install("fpp")
 library(fpp)
